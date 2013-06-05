@@ -14,9 +14,9 @@ manage lots of in-memory data items, such as caches and databases.
 
 # Example usage
 
-    arena := NewSlabArena(48,          // The smallest slab class "chunk size" is 48 bytes.
-                          1024 * 1024, // Each slab will be 1MB in size.
-                          2)           // Power of 2 growth in "chunk sizes".
+    arena := NewArena(48,         // The smallest slab class "chunk size" is 48 bytes.
+                      1024*1024,  // Each slab will be 1MB in size.
+                      2)          // Power of 2 growth in "chunk sizes".
 
     var buf []byte
 
@@ -69,10 +69,8 @@ processed as before.
 
 # Concurrency
 
-The Arena returned from NewSlabArena() is not concurrency safe.
-
-See the SynchronizedArena() helper function to easily "wrap" an Arena
-with sync.Mutex protection.
+The Arena returned from NewArena() is not concurrency safe.
+Please use your own locking.
 
 # Rules
 
