@@ -118,3 +118,10 @@ func TestAddRef(t *testing.T) {
 		t.Errorf("expected chunk to be reused")
 	}
 }
+
+func TestLargeAlloc(t *testing.T) {
+	s := NewSlabArena(1, 1, 2).(*slabArena)
+	if s.Alloc(2) != nil {
+		t.Errorf("expected alloc larger than slab size to fail")
+	}
+}
