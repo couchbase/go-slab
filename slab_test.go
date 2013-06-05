@@ -162,4 +162,16 @@ func TestDecRefOnAlreadyReleasedBuf(t *testing.T) {
 	}
 }
 
+func TestPushFreeChunkOnReferencedChunk(t *testing.T) {
+	s := NewSlabArena(1, 1, 2).(*slabArena)
+	sc := s.slabClasses[0]
+	var err interface{}
+	func() {
+		defer func() { err = recover() }()
+		sc.pushFreeChunk(&chunk{refs:1})
+	}()
+	if err == nil {
+		t.Errorf("expected panic when free'ing a ref-counted chunk")
+	}
+}
 
