@@ -148,3 +148,18 @@ func TestAddRefOnAlreadyReleasedBuf(t *testing.T) {
 	}
 }
 
+func TestDecRefOnAlreadyReleasedBuf(t *testing.T) {
+	s := NewSlabArena(1, 1, 2).(*slabArena)
+	a := s.Alloc(1)
+	s.DecRef(a)
+	var err interface{}
+	func() {
+		defer func() { err = recover() }()
+		s.DecRef(a)
+	}()
+	if err == nil {
+		t.Errorf("expected panic on DecRef on already release buf")
+	}
+}
+
+
