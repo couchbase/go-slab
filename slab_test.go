@@ -83,3 +83,26 @@ func TestDecRef(t *testing.T) {
 	}
 	expectSlabClasses(4)
 }
+
+func TestAddRef(t *testing.T) {
+	s := NewSlabArena(1, 1, 2).(*slabArena)
+	if !s.slabClasses[0].chunkFree.isEmpty() {
+		t.Errorf("expected no free chunks")
+	}
+	a := s.Alloc(1)
+	if !s.slabClasses[0].chunkFree.isEmpty() {
+		t.Errorf("expected no free chunks")
+	}
+	s.AddRef(a)
+	if !s.slabClasses[0].chunkFree.isEmpty() {
+		t.Errorf("expected no free chunks")
+	}
+	s.DecRef(a)
+	if !s.slabClasses[0].chunkFree.isEmpty() {
+		t.Errorf("expected no free chunks")
+	}
+	s.DecRef(a)
+	if s.slabClasses[0].chunkFree.isEmpty() {
+		t.Errorf("expected 1 free chunk")
+	}
+}
