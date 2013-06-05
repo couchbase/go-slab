@@ -59,6 +59,8 @@ type chunk struct {
 }
 
 // Returns an Arena based on an unsynchronized slab allocator implementation.
+// The startChunkSize and slabSize should be > 0.
+// The growthFactor should be > 1.0.
 func NewSlabArena(startChunkSize int, slabSize int, growthFactor float64) Arena {
 	s := &slabArena{
 		growthFactor: growthFactor,
@@ -66,10 +68,11 @@ func NewSlabArena(startChunkSize int, slabSize int, growthFactor float64) Arena 
 		slabMagic:    rand.Int31(),
 		slabSize:     slabSize,
 	}
-	s.addSlabClass(startChunkSize)
+	s.addSlabClass(startChunkSize) // Assume startChunkSize > 0.
 	return s
 }
 
+// The bufSize should be > 0.
 func (s *slabArena) Alloc(bufSize int) (buf []byte) {
 	if bufSize > s.slabSize {
 		return nil
@@ -77,6 +80,7 @@ func (s *slabArena) Alloc(bufSize int) (buf []byte) {
 	return s.allocSlabClassChunkMem(s.findSlabClassIndex(bufSize))[0:bufSize]
 }
 
+// The buf must be from an Alloc() from the same Arena.
 func (s *slabArena) AddRef(buf []byte) {
 	_, c := s.bufContainer(buf)
 	c.refs++
@@ -85,6 +89,7 @@ func (s *slabArena) AddRef(buf []byte) {
 	}
 }
 
+// The buf must be from an Alloc() from the same Arena.
 func (s *slabArena) DecRef(buf []byte) {
 	sc, c := s.bufContainer(buf)
 	c.refs--
@@ -102,9 +107,6 @@ func (s *slabArena) addSlabClass(chunkSize int) {
 }
 
 func (s *slabArena) makeSlabClass(slabClassIndex, chunkSize int) slabClass {
-	if chunkSize <= 0 {
-		panic(fmt.Sprintf("bad chunkSize: %v", chunkSize))
-	}
 	return slabClass{
 		slabs:     make([]*slab, 0, 16),
 		chunkSize: chunkSize,
