@@ -194,7 +194,7 @@ func (sc *slabClass) chunkMem(c *chunk) []byte {
 // Determine the slabClass & chunk for a buf []byte.
 func (s *slabArena) bufContainer(buf []byte) (*slabClass, *chunk) {
 	rest := buf[:cap(buf)]
-	footerDistance := len(rest)-SLAB_MEMORY_FOOTER_LEN
+	footerDistance := len(rest) - SLAB_MEMORY_FOOTER_LEN
 	footer := rest[footerDistance:]
 	slabClassIndex := binary.BigEndian.Uint32(footer[0:4])
 	slabIndex := binary.BigEndian.Uint32(footer[4:8])

@@ -16,9 +16,9 @@ func TestBasics(t *testing.T) {
 	if len(a) != 1 {
 		t.Errorf("expected alloc to give right size buf")
 	}
-	if cap(a) != 1 + SLAB_MEMORY_FOOTER_LEN {
+	if cap(a) != 1+SLAB_MEMORY_FOOTER_LEN {
 		t.Errorf("expected alloc cap to match algorithm, got: %v vs %v",
-			cap(a), 1 + SLAB_MEMORY_FOOTER_LEN)
+			cap(a), 1+SLAB_MEMORY_FOOTER_LEN)
 	}
 	a[0] = 66
 	s.DecRef(a)
@@ -29,9 +29,9 @@ func TestBasics(t *testing.T) {
 	if len(b) != 1 {
 		t.Errorf("expected alloc to give right size buf")
 	}
-	if cap(b) != 1 + SLAB_MEMORY_FOOTER_LEN {
+	if cap(b) != 1+SLAB_MEMORY_FOOTER_LEN {
 		t.Errorf("expected alloc cap to match algorithm, got: %v vs %v",
-			cap(b), 1 + SLAB_MEMORY_FOOTER_LEN)
+			cap(b), 1+SLAB_MEMORY_FOOTER_LEN)
 	}
 	if b[0] != 66 {
 		t.Errorf("expected alloc to return last freed buf")
@@ -140,7 +140,7 @@ func TestEmptyChunkMem(t *testing.T) {
 	if sc.chunkMem(nil) != nil {
 		t.Errorf("expected nil chunk to not have a chunk()")
 	}
-	if sc.chunkMem(&chunk{self:empty_chunkLoc}) != nil {
+	if sc.chunkMem(&chunk{self: empty_chunkLoc}) != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
 }
@@ -179,7 +179,7 @@ func TestPushFreeChunkOnReferencedChunk(t *testing.T) {
 	var err interface{}
 	func() {
 		defer func() { err = recover() }()
-		sc.pushFreeChunk(&chunk{refs:1})
+		sc.pushFreeChunk(&chunk{refs: 1})
 	}()
 	if err == nil {
 		t.Errorf("expected panic when free'ing a ref-counted chunk")
@@ -236,7 +236,7 @@ func TestBufContainer(t *testing.T) {
 	err = nil
 	func() {
 		defer func() { err = recover() }()
-		s.bufContainer(make([]byte, 1 + SLAB_MEMORY_FOOTER_LEN))
+		s.bufContainer(make([]byte, 1+SLAB_MEMORY_FOOTER_LEN))
 	}()
 	if err == nil {
 		t.Errorf("expected panic when bufContainer on non-magic buf")
