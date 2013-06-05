@@ -63,3 +63,23 @@ func TestSlabClassGrowth(t *testing.T) {
 	s.Alloc(8)
 	expectSlabClasses(4)
 }
+
+func TestDecRef(t *testing.T) {
+	s := NewSlabArena(1, 8, 2).(*slabArena)
+	expectSlabClasses := func(numSlabClasses int) {
+		if len(s.slabClasses) != numSlabClasses {
+			t.Errorf("expected %v slab classses, got: %v",
+				numSlabClasses, len(s.slabClasses))
+		}
+	}
+	a := make([][]byte, 128)
+	for j := 0; j < 100; j++ {
+		for i := 0; i < len(a); i++ {
+			a[i] = s.Alloc(i % 8)
+		}
+		for i := 0; i < len(a); i++ {
+			s.DecRef(a[i])
+		}
+	}
+	expectSlabClasses(4)
+}
