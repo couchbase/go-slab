@@ -87,6 +87,10 @@ with sync.Mutex protection.
 
 Apache 2 license.
 
+# Testing
+
+Unit test code coverage, as of 0.0.0-0-gecfea2f, is 100%.
+
 # TODO
 
 * Use a binary search to find a slabClass faster.
