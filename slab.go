@@ -18,7 +18,7 @@ import (
 	"math/rand"
 )
 
-type slabArena struct {
+type Arena struct {
 	growthFactor float64
 	slabClasses  []slabClass // The chunkSizes of slabClasses grows by growthFactor.
 	slabMagic    int32       // Magic number at the end of each slab memory []byte.
@@ -58,11 +58,11 @@ type chunk struct {
 	next chunkLoc // Used when the chunk is in the free-list.
 }
 
-// Returns an Arena based on an unsynchronized slab allocator implementation.
+// Returns an Arena based on a slab allocator implementation.
 // The startChunkSize and slabSize should be > 0.
 // The growthFactor should be > 1.0.
-func NewSlabArena(startChunkSize int, slabSize int, growthFactor float64) Arena {
-	s := &slabArena{
+func NewArena(startChunkSize int, slabSize int, growthFactor float64) *Arena {
+	s := &Arena{
 		growthFactor: growthFactor,
 		slabClasses:  make([]slabClass, 0, 8),
 		slabMagic:    rand.Int31(),
@@ -72,16 +72,17 @@ func NewSlabArena(startChunkSize int, slabSize int, growthFactor float64) Arena 
 	return s
 }
 
-// The bufSize should be > 0.
-func (s *slabArena) Alloc(bufSize int) (buf []byte) {
+// The input buf must be a buf returned by Alloc().  Once
+// the buf's ref-count drops to 0, the Arena may re-use the buf.
+func (s *Arena) Alloc(bufSize int) (buf []byte) {
 	if bufSize > s.slabSize {
 		return nil
 	}
 	return s.assignChunkMem(s.findSlabClassIndex(bufSize))[0:bufSize]
 }
 
-// The buf must be from an Alloc() from the same Arena.
-func (s *slabArena) AddRef(buf []byte) {
+// The input buf must be a buf returned by Alloc().
+func (s *Arena) AddRef(buf []byte) {
 	_, c := s.bufContainer(buf)
 	c.refs++
 	if c.refs <= 1 {
@@ -90,7 +91,7 @@ func (s *slabArena) AddRef(buf []byte) {
 }
 
 // The buf must be from an Alloc() from the same Arena.
-func (s *slabArena) DecRef(buf []byte) {
+func (s *Arena) DecRef(buf []byte) {
 	sc, c := s.bufContainer(buf)
 	c.refs--
 	if c.refs < 0 {
@@ -101,7 +102,7 @@ func (s *slabArena) DecRef(buf []byte) {
 	}
 }
 
-func (s *slabArena) addSlabClass(chunkSize int) {
+func (s *Arena) addSlabClass(chunkSize int) {
 	s.slabClasses = append(s.slabClasses, slabClass{
 		slabs:     make([]*slab, 0, 16),
 		chunkSize: chunkSize,
@@ -109,7 +110,7 @@ func (s *slabArena) addSlabClass(chunkSize int) {
 	})
 }
 
-func (s *slabArena) findSlabClassIndex(bufSize int) int {
+func (s *Arena) findSlabClassIndex(bufSize int) int {
 	curr := 0
 	for {
 		// TODO: Use binary search instead of linear walk.
@@ -125,7 +126,7 @@ func (s *slabArena) findSlabClassIndex(bufSize int) int {
 	}
 }
 
-func (s *slabArena) assignChunkMem(slabClassIndex int) (chunkMem []byte) {
+func (s *Arena) assignChunkMem(slabClassIndex int) (chunkMem []byte) {
 	sc := &(s.slabClasses[slabClassIndex])
 	if sc.chunkFree.isEmpty() {
 		sc.addSlab(slabClassIndex, sc.chunkSize, s.slabSize, s.slabMagic)
@@ -192,7 +193,7 @@ func (sc *slabClass) chunkMem(c *chunk) []byte {
 }
 
 // Determine the slabClass & chunk for a buf []byte.
-func (s *slabArena) bufContainer(buf []byte) (*slabClass, *chunk) {
+func (s *Arena) bufContainer(buf []byte) (*slabClass, *chunk) {
 	rest := buf[:cap(buf)]
 	footerDistance := len(rest) - SLAB_MEMORY_FOOTER_LEN
 	footer := rest[footerDistance:]

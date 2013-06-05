@@ -5,7 +5,7 @@ import (
 )
 
 func TestBasics(t *testing.T) {
-	s := NewSlabArena(1, 1024, 2)
+	s := NewArena(1, 1024, 2)
 	if s == nil {
 		t.Errorf("expected new slab arena to work")
 	}
@@ -46,7 +46,7 @@ func TestBasics(t *testing.T) {
 }
 
 func TestSlabClassGrowth(t *testing.T) {
-	s := NewSlabArena(1, 8, 2).(*slabArena)
+	s := NewArena(1, 8, 2)
 	expectSlabClasses := func(numSlabClasses int) {
 		if len(s.slabClasses) != numSlabClasses {
 			t.Errorf("expected %v slab classses, got: %v",
@@ -72,7 +72,7 @@ func TestSlabClassGrowth(t *testing.T) {
 }
 
 func TestDecRef(t *testing.T) {
-	s := NewSlabArena(1, 8, 2).(*slabArena)
+	s := NewArena(1, 8, 2)
 	expectSlabClasses := func(numSlabClasses int) {
 		if len(s.slabClasses) != numSlabClasses {
 			t.Errorf("expected %v slab classses, got: %v",
@@ -92,7 +92,7 @@ func TestDecRef(t *testing.T) {
 }
 
 func TestAddRef(t *testing.T) {
-	s := NewSlabArena(1, 1, 2).(*slabArena)
+	s := NewArena(1, 1, 2)
 	if !s.slabClasses[0].chunkFree.isEmpty() {
 		t.Errorf("expected no free chunks")
 	}
@@ -120,14 +120,14 @@ func TestAddRef(t *testing.T) {
 }
 
 func TestLargeAlloc(t *testing.T) {
-	s := NewSlabArena(1, 1, 2).(*slabArena)
+	s := NewArena(1, 1, 2)
 	if s.Alloc(2) != nil {
 		t.Errorf("expected alloc larger than slab size to fail")
 	}
 }
 
 func TestEmptyChunk(t *testing.T) {
-	s := NewSlabArena(1, 1, 2).(*slabArena)
+	s := NewArena(1, 1, 2)
 	sc := s.slabClasses[0]
 	if sc.chunk(empty_chunkLoc) != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
@@ -135,7 +135,7 @@ func TestEmptyChunk(t *testing.T) {
 }
 
 func TestEmptyChunkMem(t *testing.T) {
-	s := NewSlabArena(1, 1, 2).(*slabArena)
+	s := NewArena(1, 1, 2)
 	sc := s.slabClasses[0]
 	if sc.chunkMem(nil) != nil {
 		t.Errorf("expected nil chunk to not have a chunk()")
@@ -146,7 +146,7 @@ func TestEmptyChunkMem(t *testing.T) {
 }
 
 func TestAddRefOnAlreadyReleasedBuf(t *testing.T) {
-	s := NewSlabArena(1, 1, 2).(*slabArena)
+	s := NewArena(1, 1, 2)
 	a := s.Alloc(1)
 	s.DecRef(a)
 	var err interface{}
@@ -160,7 +160,7 @@ func TestAddRefOnAlreadyReleasedBuf(t *testing.T) {
 }
 
 func TestDecRefOnAlreadyReleasedBuf(t *testing.T) {
-	s := NewSlabArena(1, 1, 2).(*slabArena)
+	s := NewArena(1, 1, 2)
 	a := s.Alloc(1)
 	s.DecRef(a)
 	var err interface{}
@@ -174,7 +174,7 @@ func TestDecRefOnAlreadyReleasedBuf(t *testing.T) {
 }
 
 func TestPushFreeChunkOnReferencedChunk(t *testing.T) {
-	s := NewSlabArena(1, 1, 2).(*slabArena)
+	s := NewArena(1, 1, 2)
 	sc := s.slabClasses[0]
 	var err interface{}
 	func() {
@@ -187,7 +187,7 @@ func TestPushFreeChunkOnReferencedChunk(t *testing.T) {
 }
 
 func TestPopFreeChunkOnFreeChunk(t *testing.T) {
-	s := NewSlabArena(1, 1, 2).(*slabArena)
+	s := NewArena(1, 1, 2)
 	sc := s.slabClasses[0]
 	sc.chunkFree = empty_chunkLoc
 	var err interface{}
@@ -201,7 +201,7 @@ func TestPopFreeChunkOnFreeChunk(t *testing.T) {
 }
 
 func TestPopFreeChunkOnReferencedFreeChunk(t *testing.T) {
-	s := NewSlabArena(1, 1024, 2).(*slabArena)
+	s := NewArena(1, 1024, 2)
 	s.Alloc(1)
 	sc := s.slabClasses[0]
 	sc.chunk(sc.chunkFree).refs = 1
@@ -216,7 +216,7 @@ func TestPopFreeChunkOnReferencedFreeChunk(t *testing.T) {
 }
 
 func TestBufContainer(t *testing.T) {
-	s := NewSlabArena(1, 1024, 2).(*slabArena)
+	s := NewArena(1, 1024, 2)
 	var err interface{}
 	func() {
 		defer func() { err = recover() }()
