@@ -133,3 +133,18 @@ func TestEmptyChunk(t *testing.T) {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
 }
+
+func TestAddRefOnAlreadyReleasedBuf(t *testing.T) {
+	s := NewSlabArena(1, 1, 2).(*slabArena)
+	a := s.Alloc(1)
+	s.DecRef(a)
+	var err interface{}
+	func() {
+		defer func() { err = recover() }()
+		s.AddRef(a)
+	}()
+	if err == nil {
+		t.Errorf("expected panic on AddRef on already release buf")
+	}
+}
+
