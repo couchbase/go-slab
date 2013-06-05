@@ -134,6 +134,17 @@ func TestEmptyChunk(t *testing.T) {
 	}
 }
 
+func TestEmptyChunkMem(t *testing.T) {
+	s := NewSlabArena(1, 1, 2).(*slabArena)
+	sc := s.slabClasses[0]
+	if sc.chunkMem(nil) != nil {
+		t.Errorf("expected nil chunk to not have a chunk()")
+	}
+	if sc.chunkMem(&chunk{self:empty_chunkLoc}) != nil {
+		t.Errorf("expected empty chunk to not have a chunk()")
+	}
+}
+
 func TestAddRefOnAlreadyReleasedBuf(t *testing.T) {
 	s := NewSlabArena(1, 1, 2).(*slabArena)
 	a := s.Alloc(1)
