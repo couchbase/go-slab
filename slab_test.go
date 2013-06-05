@@ -242,3 +242,33 @@ func TestBufContainer(t *testing.T) {
 		t.Errorf("expected panic when bufContainer on non-magic buf")
 	}
 }
+
+func BenchmarkReffing(b *testing.B) {
+	a := NewArena(1, 1024, 2)
+
+	data := a.Alloc(1)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		a.AddRef(data)
+		a.DecRef(data)
+	}
+}
+
+func BenchmarkAllocing(b *testing.B) {
+	a := NewArena(1, 1024, 2)
+
+	stuff := [][]byte{}
+	for i := 0; i < 1024; i++ {
+		stuff = append(stuff, a.Alloc(1))
+	}
+
+	for _, x := range stuff {
+		a.DecRef(x)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		a.DecRef(a.Alloc(1))
+	}
+}
