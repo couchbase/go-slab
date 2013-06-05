@@ -90,6 +90,7 @@ func TestAddRef(t *testing.T) {
 		t.Errorf("expected no free chunks")
 	}
 	a := s.Alloc(1)
+	a[0] = 123
 	if !s.slabClasses[0].chunkFree.isEmpty() {
 		t.Errorf("expected no free chunks")
 	}
@@ -104,5 +105,9 @@ func TestAddRef(t *testing.T) {
 	s.DecRef(a)
 	if s.slabClasses[0].chunkFree.isEmpty() {
 		t.Errorf("expected 1 free chunk")
+	}
+	b := s.Alloc(1)
+	if b[0] != 123 {
+		t.Errorf("expected chunk to be reused")
 	}
 }
