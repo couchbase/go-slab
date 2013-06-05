@@ -92,9 +92,9 @@ Apache 2 license.
 * Use a binary search to find a slabClass faster.
 * Currently, slabs that are allocated are never freed.
 * Memory for one slabClass is never reassigned to another slabClass.
-  This may be useful over time as the data item sizes of long-running
-  systems change over time.  For example, sessions in a web application
-  may initially fit fine into a 1K slab class, but start getting larger
-  than 1K as version 3.1 of the web application is deployed.  Meanwhile,
-  most of the slab memory is "stuck" in the 1K slab class.
-
+  Memory reassignment might be useful whenever data sizes of items in
+  long-running systems change over time.  For example, sessions in an
+  online game may initially fit fine into a 1K slab class, but start
+  getting larger than 1K as players acquire more inventory.
+  Meanwhile, most of the slab memory is "stuck" in the 1K slab class
+  when it's now needed in the 2K slab class.
