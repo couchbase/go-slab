@@ -43,10 +43,7 @@ type chunkLoc struct {
 	chunkIndex int
 }
 
-var empty_chunkLoc chunkLoc = chunkLoc{ // A sentinel.
-	slabIndex:  -1,
-	chunkIndex: -1,
-}
+var empty_chunkLoc = chunkLoc{-1, -1} // A sentinel.
 
 func (cl *chunkLoc) isEmpty() bool {
 	return cl.slabIndex == -1 && cl.chunkIndex == -1
