@@ -16,22 +16,22 @@ manage lots of in-memory data items, such as caches and databases.
 
     arena := NewSlabArena(48,          // The smallest slab class "chunk size" is 48 bytes.
                           1024 * 1024, // Each slab will be 1MB in size.
-                          2)           // Power of 2 growth in slab class "chunk sizes".
+                          2)           // Power of 2 growth in "chunk sizes".
 
     var buf []byte
 
-    buf = arena.Alloc(64)   // Allocate 64 bytes.
-    ... use the buf ...
-    arena.DecRef(buf)       // Release our ref-count when we're done with buf.
+    buf = arena.Alloc(64)         // Allocate 64 bytes.
+      ... use the buf ...
+    arena.DecRef(buf)             // Release our ref-count when we're done with buf.
 
-    buf = arena.Alloc(1024) // Allocate another 1K byte array.
-    ... use the buf ...
-    arena.AddRef(buf)       // The buf's ref-count now goes to 2.
-    ... use the buf some more...
+    buf = arena.Alloc(1024)       // Allocate another 1K byte array.
+      ... use the buf ...
+    arena.AddRef(buf)             // The buf's ref-count now goes to 2.
+      ... use the buf some more ...
     arena.DecRef(buf)
-    ... we can keep on using the buf since we still have 1 ref-count...
-    arena.DecRef(buf)       // We shouldn't use the buf after this last DecRef(),
-                            // as the library might recycle it for a future Alloc().
+      ... still can use the buf since we still have 1 ref-count ...
+    arena.DecRef(buf)             // We shouldn't use the buf after this last DecRef(),
+                                  // as the library might recycle it for a future Alloc().
 
 # Design concepts
 
