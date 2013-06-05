@@ -53,9 +53,9 @@ func (cl *chunkLoc) isEmpty() bool {
 }
 
 type chunk struct {
-	refs int32
-	self chunkLoc
-	next chunkLoc
+	refs int32    // Ref-count.
+	self chunkLoc // The self is the chunkLoc for this chunk.
+	next chunkLoc // Used when the chunk is in the free-list.
 }
 
 // Returns an Arena based on an unsynchronized slab allocator implementation.
@@ -68,7 +68,7 @@ func NewSlabArena(startChunkSize int, slabSize int, growthFactor float64) Arena 
 		slabMagic:    rand.Int31(),
 		slabSize:     slabSize,
 	}
-	s.addSlabClass(startChunkSize) // Assume startChunkSize > 0.
+	s.addSlabClass(startChunkSize)
 	return s
 }
 
@@ -77,7 +77,7 @@ func (s *slabArena) Alloc(bufSize int) (buf []byte) {
 	if bufSize > s.slabSize {
 		return nil
 	}
-	return s.allocSlabClassChunkMem(s.findSlabClassIndex(bufSize))[0:bufSize]
+	return s.assignChunkMem(s.findSlabClassIndex(bufSize))[0:bufSize]
 }
 
 // The buf must be from an Alloc() from the same Arena.
@@ -102,21 +102,17 @@ func (s *slabArena) DecRef(buf []byte) {
 }
 
 func (s *slabArena) addSlabClass(chunkSize int) {
-	s.slabClasses = append(s.slabClasses,
-		s.makeSlabClass(len(s.slabClasses), chunkSize))
-}
-
-func (s *slabArena) makeSlabClass(slabClassIndex, chunkSize int) slabClass {
-	return slabClass{
+	s.slabClasses = append(s.slabClasses, slabClass{
 		slabs:     make([]*slab, 0, 16),
 		chunkSize: chunkSize,
 		chunkFree: empty_chunkLoc,
-	}
+	})
 }
 
 func (s *slabArena) findSlabClassIndex(bufSize int) int {
 	curr := 0
 	for {
+		// TODO: Use binary search instead of linear walk.
 		slabClass := &(s.slabClasses[curr])
 		if bufSize <= slabClass.chunkSize {
 			return curr
@@ -129,7 +125,7 @@ func (s *slabArena) findSlabClassIndex(bufSize int) int {
 	}
 }
 
-func (s *slabArena) allocSlabClassChunkMem(slabClassIndex int) (chunkMem []byte) {
+func (s *slabArena) assignChunkMem(slabClassIndex int) (chunkMem []byte) {
 	sc := &(s.slabClasses[slabClassIndex])
 	if sc.chunkFree.isEmpty() {
 		sc.addSlab(slabClassIndex, sc.chunkSize, s.slabSize, s.slabMagic)
