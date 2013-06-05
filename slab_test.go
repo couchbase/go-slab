@@ -186,3 +186,17 @@ func TestPushFreeChunkOnReferencedChunk(t *testing.T) {
 	}
 }
 
+func TestPopFreeChunkOnFreeChunk(t *testing.T) {
+	s := NewSlabArena(1, 1, 2).(*slabArena)
+	sc := s.slabClasses[0]
+	sc.chunkFree = empty_chunkLoc
+	var err interface{}
+	func() {
+		defer func() { err = recover() }()
+		sc.popFreeChunk()
+	}()
+	if err == nil {
+		t.Errorf("expected panic when popFreeChunk() on free chunk")
+	}
+}
+
