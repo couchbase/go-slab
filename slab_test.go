@@ -125,3 +125,11 @@ func TestLargeAlloc(t *testing.T) {
 		t.Errorf("expected alloc larger than slab size to fail")
 	}
 }
+
+func TestEmptyChunk(t *testing.T) {
+	s := NewSlabArena(1, 1, 2).(*slabArena)
+	sc := s.slabClasses[0]
+	if sc.chunk(empty_chunkLoc) != nil {
+		t.Errorf("expected empty chunk to not have a chunk()")
+	}
+}
