@@ -215,3 +215,30 @@ func TestPopFreeChunkOnReferencedFreeChunk(t *testing.T) {
 	}
 }
 
+func TestBufContainer(t *testing.T) {
+	s := NewSlabArena(1, 1024, 2).(*slabArena)
+	var err interface{}
+	func() {
+		defer func() { err = recover() }()
+		s.bufContainer(nil)
+	}()
+	if err == nil {
+		t.Errorf("expected panic when bufContainer on nil buf")
+	}
+	err = nil
+	func() {
+		defer func() { err = recover() }()
+		s.bufContainer(make([]byte, 1))
+	}()
+	if err == nil {
+		t.Errorf("expected panic when bufContainer on small buf")
+	}
+	err = nil
+	func() {
+		defer func() { err = recover() }()
+		s.bufContainer(make([]byte, 1 + SLAB_MEMORY_FOOTER_LEN))
+	}()
+	if err == nil {
+		t.Errorf("expected panic when bufContainer on non-magic buf")
+	}
+}
