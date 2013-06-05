@@ -64,7 +64,6 @@ type chunk struct {
 func NewArena(startChunkSize int, slabSize int, growthFactor float64) *Arena {
 	s := &Arena{
 		growthFactor: growthFactor,
-		slabClasses:  make([]slabClass, 0, 8),
 		slabMagic:    rand.Int31(),
 		slabSize:     slabSize,
 	}
@@ -104,7 +103,6 @@ func (s *Arena) DecRef(buf []byte) {
 
 func (s *Arena) addSlabClass(chunkSize int) {
 	s.slabClasses = append(s.slabClasses, slabClass{
-		slabs:     make([]*slab, 0, 16),
 		chunkSize: chunkSize,
 		chunkFree: empty_chunkLoc,
 	})
