@@ -36,6 +36,13 @@ func TestBasics(t *testing.T) {
 	if b[0] != 66 {
 		t.Errorf("expected alloc to return last freed buf")
 	}
+	s.AddRef(b)
+	s.DecRef(b)
+	s.DecRef(b)
+	c := s.Alloc(1)
+	if c[0] != 66 {
+		t.Errorf("expected alloc to return last freed buf")
+	}
 }
 
 func TestSlabClassGrowth(t *testing.T) {
