@@ -5,7 +5,7 @@ import (
 )
 
 func TestBasics(t *testing.T) {
-	s := SynchronizedArena(NewSlabArena(1, 1024, 2))
+	s := NewSlabArena(1, 1024, 2)
 	if s == nil {
 		t.Errorf("expected new slab arena to work")
 	}
