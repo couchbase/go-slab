@@ -39,14 +39,15 @@ type slab struct {
 const SLAB_MEMORY_FOOTER_LEN int = 4 + 4 + 4 // slabClassIndex + slabIndex + slabMagic.
 
 type chunkLoc struct {
-	slabIndex  int
-	chunkIndex int
+	slabClassIndex int
+	slabIndex      int
+	chunkIndex     int
 }
 
-var empty_chunkLoc = chunkLoc{-1, -1} // A sentinel.
+var empty_chunkLoc = chunkLoc{-1, -1, -1} // A sentinel.
 
 func (cl *chunkLoc) isEmpty() bool {
-	return cl.slabIndex == -1 && cl.chunkIndex == -1
+	return cl.slabClassIndex == -1 && cl.slabIndex == -1 && cl.chunkIndex == -1
 }
 
 type chunk struct {
@@ -156,6 +157,7 @@ func (sc *slabClass) addSlab(slabClassIndex, chunkSize, slabSize int, slabMagic 
 	sc.slabs = append(sc.slabs, slab)
 	for i := 0; i < len(slab.chunks); i++ {
 		c := &(slab.chunks[i])
+		c.self.slabClassIndex = slabClassIndex
 		c.self.slabIndex = slabIndex
 		c.self.chunkIndex = i
 		sc.pushFreeChunk(c)
@@ -184,6 +186,14 @@ func (sc *slabClass) popFreeChunk() *chunk {
 	return c
 }
 
+func (sc *slabClass) chunkMem(c *chunk) []byte {
+	if c == nil || c.self.isEmpty() {
+		return nil
+	}
+	beg := sc.chunkSize * c.self.chunkIndex
+	return sc.slabs[c.self.slabIndex].memory[beg : beg+sc.chunkSize]
+}
+
 func (sc *slabClass) chunk(cl chunkLoc) *chunk {
 	if cl.isEmpty() {
 		return nil
@@ -191,12 +201,11 @@ func (sc *slabClass) chunk(cl chunkLoc) *chunk {
 	return &(sc.slabs[cl.slabIndex].chunks[cl.chunkIndex])
 }
 
-func (sc *slabClass) chunkMem(c *chunk) []byte {
-	if c == nil || c.self.isEmpty() {
+func (s *Arena) chunk(cl chunkLoc) *chunk {
+	if cl.isEmpty() {
 		return nil
 	}
-	beg := sc.chunkSize * c.self.chunkIndex
-	return sc.slabs[c.self.slabIndex].memory[beg : beg+sc.chunkSize]
+	return s.slabClasses[cl.slabClassIndex].chunk(cl)
 }
 
 // Determine the slabClass & chunk for a buf []byte.
