@@ -215,31 +215,19 @@ func TestPopFreeChunkOnReferencedFreeChunk(t *testing.T) {
 	}
 }
 
-func TestBufContainer(t *testing.T) {
+func TestOwns(t *testing.T) {
 	s := NewArena(1, 1024, 2)
-	var err interface{}
-	func() {
-		defer func() { err = recover() }()
-		s.bufContainer(nil)
-	}()
-	if err == nil {
-		t.Errorf("expected panic when bufContainer on nil buf")
+	if s.Owns(nil) {
+		t.Errorf("expected false when Owns on nil buf")
 	}
-	err = nil
-	func() {
-		defer func() { err = recover() }()
-		s.bufContainer(make([]byte, 1))
-	}()
-	if err == nil {
-		t.Errorf("expected panic when bufContainer on small buf")
+	if s.Owns(make([]byte, 1)) {
+		t.Errorf("expected false when Owns on small buf")
 	}
-	err = nil
-	func() {
-		defer func() { err = recover() }()
-		s.bufContainer(make([]byte, 1+SLAB_MEMORY_FOOTER_LEN))
-	}()
-	if err == nil {
-		t.Errorf("expected panic when bufContainer on non-magic buf")
+	if s.Owns(make([]byte, 1+SLAB_MEMORY_FOOTER_LEN)) {
+		t.Errorf("expected false whens Owns on non-magic buf")
+	}
+	if !s.Owns(s.Alloc(1)) {
+		t.Errorf("expected Owns on Alloc'ed buf")
 	}
 }
 

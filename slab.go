@@ -79,7 +79,10 @@ func (s *Arena) Alloc(bufSize int) (buf []byte) {
 
 // The input buf must be a buf returned by Alloc().
 func (s *Arena) AddRef(buf []byte) {
-	_, c := s.bufContainer(buf)
+	sc, c := s.bufContainer(buf)
+	if sc == nil || c == nil {
+		panic("buf not from this arena")
+	}
 	c.refs++
 	if c.refs <= 1 {
 		panic(fmt.Sprintf("unexpected ref-count during AddRef: %#v", c))
@@ -89,6 +92,9 @@ func (s *Arena) AddRef(buf []byte) {
 // The buf must be from an Alloc() from the same Arena.
 func (s *Arena) DecRef(buf []byte) {
 	sc, c := s.bufContainer(buf)
+	if sc == nil || c == nil {
+		panic("buf not from this arena")
+	}
 	c.refs--
 	if c.refs < 0 {
 		panic(fmt.Sprintf("unexpected ref-count during DecRef: %#v", c))
@@ -96,6 +102,12 @@ func (s *Arena) DecRef(buf []byte) {
 	if c.refs == 0 {
 		sc.pushFreeChunk(c)
 	}
+}
+
+// Returns true if this Arena owns the buf.
+func (s *Arena) Owns(buf []byte) bool {
+	sc, c := s.bufContainer(buf)
+	return sc != nil && c != nil
 }
 
 func (s *Arena) addSlabClass(chunkSize int) {
@@ -189,6 +201,9 @@ func (sc *slabClass) chunkMem(c *chunk) []byte {
 
 // Determine the slabClass & chunk for a buf []byte.
 func (s *Arena) bufContainer(buf []byte) (*slabClass, *chunk) {
+	if buf == nil || cap(buf) <= SLAB_MEMORY_FOOTER_LEN {
+		return nil, nil
+	}
 	rest := buf[:cap(buf)]
 	footerDistance := len(rest) - SLAB_MEMORY_FOOTER_LEN
 	footer := rest[footerDistance:]
@@ -196,8 +211,7 @@ func (s *Arena) bufContainer(buf []byte) (*slabClass, *chunk) {
 	slabIndex := binary.BigEndian.Uint32(footer[4:8])
 	slabMagic := binary.BigEndian.Uint32(footer[8:12])
 	if slabMagic != uint32(s.slabMagic) {
-		panic(fmt.Sprintf("wrong slabMagic, buf not from this arena: %v vs %v",
-			slabMagic, uint32(s.slabMagic)))
+		return nil, nil
 	}
 	sc := &(s.slabClasses[slabClassIndex])
 	slab := sc.slabs[slabIndex]
