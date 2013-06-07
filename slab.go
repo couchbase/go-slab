@@ -201,6 +201,13 @@ func (sc *slabClass) chunk(cl chunkLoc) *chunk {
 	return &(sc.slabs[cl.slabIndex].chunks[cl.chunkIndex])
 }
 
+func (s *Arena) chunkMem(c *chunk) []byte {
+	if c == nil || c.self.isEmpty() {
+		return nil
+	}
+	return s.slabClasses[c.self.slabClassIndex].chunkMem(c)
+}
+
 func (s *Arena) chunk(cl chunkLoc) *chunk {
 	if cl.isEmpty() {
 		return nil
