@@ -93,13 +93,59 @@ func (s *Arena) DecRef(buf []byte) {
 	if sc == nil || c == nil {
 		panic("buf not from this arena")
 	}
-	sc.decRef(c)
+	s.decRef(sc, c)
 }
 
 // Returns true if this Arena owns the buf.
 func (s *Arena) Owns(buf []byte) bool {
 	sc, c := s.bufContainer(buf)
 	return sc != nil && c != nil
+}
+
+// The buf's from an Arena can be chained.  The returned bufNext may
+// be nil.  When the returned bufNext is non-nil, the caller owns a
+// ref-count on bufNext and must invoke DecRef(bufNext) when the
+// caller is finished using bufNext.
+func (s *Arena) GetNext(buf []byte) (bufNext []byte) {
+	sc, c := s.bufContainer(buf)
+	if sc == nil || c == nil {
+		panic("buf not from this arena")
+	}
+	if c.refs <= 0 {
+		panic(fmt.Sprintf("unexpected ref-count during GetNext: %#v", c))
+	}
+	scNext, cNext := s.chunk(c.next)
+	if scNext == nil || cNext == nil {
+		return nil
+	}
+	cNext.addRef()
+	return s.chunkMem(cNext)
+}
+
+// The buf's from an Arena can be chained, where buf will own an
+// AddRef() on bufNext.  When buf's ref-count goes to zero, it will
+// call DecRef() on bufNext.  The bufNext may be nil.
+func (s *Arena) SetNext(buf, bufNext []byte) {
+	sc, c := s.bufContainer(buf)
+	if sc == nil || c == nil {
+		panic("buf not from this arena")
+	}
+	if c.refs <= 0 {
+		panic(fmt.Sprintf("unexpected ref-count during SetNext: %#v", c))
+	}
+	scOldNext, cOldNext := s.chunk(c.next)
+	if scOldNext != nil && cOldNext != nil {
+		s.decRef(scOldNext, cOldNext)
+	}
+	c.next = empty_chunkLoc
+	if bufNext != nil {
+		scNewNext, cNewNext := s.bufContainer(bufNext)
+		if scNewNext == nil || cNewNext == nil {
+			panic("bufNext not from this arena")
+		}
+		cNewNext.addRef()
+		c.next = cNewNext.self
+	}
 }
 
 func (s *Arena) addSlabClass(chunkSize int) {
@@ -235,12 +281,17 @@ func (c *chunk) addRef() *chunk {
 	return c
 }
 
-func (sc *slabClass) decRef(c *chunk) *chunk {
+func (s *Arena) decRef(sc *slabClass, c *chunk) *chunk {
 	c.refs--
 	if c.refs < 0 {
 		panic(fmt.Sprintf("unexpected ref-count during decRef: %#v", c))
 	}
 	if c.refs == 0 {
+		scNext, cNext := s.chunk(c.next)
+		if scNext != nil && cNext != nil {
+			s.decRef(scNext, cNext)
+		}
+		c.next = empty_chunkLoc
 		sc.pushFreeChunk(c)
 	}
 	return c

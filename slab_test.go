@@ -288,6 +288,151 @@ func TestArenaChunkMem(t *testing.T) {
 	}
 }
 
+func TestChaining(t *testing.T) {
+	testChaining(t, NewArena(1, 1, 2))
+	testChaining(t, NewArena(1, 100, 2))
+}
+
+func testChaining(t *testing.T, s *Arena) {
+	a := s.Alloc(1)
+	f := s.Alloc(1)
+	s.DecRef(f) // The f buf is now freed.
+	if s.GetNext(a) != nil {
+		t.Errorf("expected nil GetNext()")
+	}
+	s.SetNext(a, nil)
+	if s.GetNext(a) != nil {
+		t.Errorf("expected nil GetNext()")
+	}
+	var err interface{}
+	func() {
+		defer func() { err = recover() }()
+		s.GetNext(nil)
+	}()
+	if err == nil {
+		t.Errorf("expected panic when GetNext(nil)")
+	}
+	err = nil
+	func() {
+		defer func() { err = recover() }()
+		s.GetNext(make([]byte, 1))
+	}()
+	if err == nil {
+		t.Errorf("expected panic when GetNext(non-arena-buf)")
+	}
+	err = nil
+	func() {
+		defer func() { err = recover() }()
+		s.GetNext(f)
+	}()
+	if err == nil {
+		t.Errorf("expected panic when GetNext(already-freed-buf)")
+	}
+	err = nil
+	func() {
+		defer func() { err = recover() }()
+		s.SetNext(nil, make([]byte, 1))
+	}()
+	if err == nil {
+		t.Errorf("expected panic when SetNext(nil)")
+	}
+	err = nil
+	func() {
+		defer func() { err = recover() }()
+		s.SetNext(a, make([]byte, 1))
+	}()
+	if err == nil {
+		t.Errorf("expected panic when SetNext(non-arena-buf)")
+	}
+	err = nil
+	func() {
+		defer func() { err = recover() }()
+		s.SetNext(f, nil)
+	}()
+	if err == nil {
+		t.Errorf("expected panic when SetNext(already-freed-buf)")
+	}
+	b0 := s.Alloc(1)
+	b1 := s.Alloc(1)
+	b1[0] = 201
+	s.SetNext(b0, b1)
+	bx := s.GetNext(b0)
+	if bx[0] != 201 {
+		t.Errorf("expected chain to work")
+	}
+	s.DecRef(bx)
+	s.DecRef(b1)
+	bx = s.GetNext(b0)
+	if bx[0] != 201 {
+		t.Errorf("expected chain to still work")
+	}
+	s.DecRef(bx)
+	_, b0chunk := s.bufContainer(b0)
+	if b0chunk.refs != 1 {
+		t.Errorf("expected b0chunk to still be alive")
+	}
+	_, b1chunk := s.bufContainer(b1)
+	if b1chunk == nil {
+		t.Errorf("expected b1chunk to still be alive")
+	}
+	if b1chunk.refs != 1 {
+		t.Errorf("expected b1chunk to still be ref'ed")
+	}
+	if b0chunk.next.isEmpty() {
+		t.Errorf("expected b0chunk to not be empty")
+	}
+	if !b1chunk.next.isEmpty() {
+		t.Errorf("expected b1chunk to have no next")
+	}
+	s.DecRef(b0)
+	if b0chunk.refs != 0 {
+		t.Errorf("expected b0chunk to not be ref'ed")
+	}
+	if b1chunk.refs != 0 {
+		t.Errorf("expected b1chunk to not be ref'ed")
+	}
+	alice := s.Alloc(1)
+	bob := s.Alloc(1)
+	betty := s.Alloc(1)
+	_, bobChunk := s.bufContainer(bob)
+	_, bettyChunk := s.bufContainer(betty)
+	s.SetNext(alice, bob)
+	if bobChunk.refs != 2 {
+		t.Errorf("expected bob to have 2 refs")
+	}
+	if bettyChunk.refs != 1 {
+		t.Errorf("expected betty to have 1 ref")
+	}
+	s.DecRef(bob)
+	if bobChunk.refs != 1 {
+		t.Errorf("expected bob to have 1 ref (from alice)")
+	}
+	if bettyChunk.refs != 1 {
+		t.Errorf("expected betty to have 1 ref")
+	}
+	s.SetNext(alice, betty)
+	if bobChunk.refs != 0 {
+		t.Errorf("expected bob to have 0 ref's (alice dropped bob for betty)")
+	}
+	if bettyChunk.refs != 2 {
+		t.Errorf("expected betty to have 2 ref (1 from alice)")
+	}
+	s.DecRef(betty)
+	if bobChunk.refs != 0 {
+		t.Errorf("expected bob to have 0 ref's (alice dropped bob for betty)")
+	}
+	if bettyChunk.refs != 1 {
+		t.Errorf("expected betty to have 1 ref (from alice)")
+	}
+	s.DecRef(alice)
+	if bobChunk.refs != 0 {
+		t.Errorf("expected bob to have 0 ref's (alice dropped bob for betty)")
+	}
+	if bettyChunk.refs != 0 {
+		t.Errorf("expected betty to have 0 ref (alice dropped betty)")
+	}
+}
+
 func BenchmarkReffing(b *testing.B) {
 	a := NewArena(1, 1024, 2)
 
