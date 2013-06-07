@@ -231,6 +231,26 @@ func TestOwns(t *testing.T) {
 	}
 }
 
+func TestAddDecRefOnUnowned(t *testing.T) {
+	s := NewArena(1, 1024, 2)
+	var err interface{}
+	func() {
+		defer func() { err = recover() }()
+		s.AddRef(make([]byte, 1000))
+	}()
+	if err == nil {
+		t.Errorf("expected panic when AddRef() on unowned buf")
+	}
+	err = nil
+	func() {
+		defer func() { err = recover() }()
+		s.DecRef(make([]byte, 1000))
+	}()
+	if err == nil {
+		t.Errorf("expected panic when DecRef() on unowned buf")
+	}
+}
+
 func BenchmarkReffing(b *testing.B) {
 	a := NewArena(1, 1024, 2)
 
