@@ -84,10 +84,7 @@ func (s *Arena) AddRef(buf []byte) {
 	if sc == nil || c == nil {
 		panic("buf not from this arena")
 	}
-	c.refs++
-	if c.refs <= 1 {
-		panic(fmt.Sprintf("unexpected ref-count during AddRef: %#v", c))
-	}
+	sc.addRef(c)
 }
 
 // The buf must be from an Alloc() from the same Arena.
@@ -96,13 +93,7 @@ func (s *Arena) DecRef(buf []byte) {
 	if sc == nil || c == nil {
 		panic("buf not from this arena")
 	}
-	c.refs--
-	if c.refs < 0 {
-		panic(fmt.Sprintf("unexpected ref-count during DecRef: %#v", c))
-	}
-	if c.refs == 0 {
-		sc.pushFreeChunk(c)
-	}
+	sc.decRef(c)
 }
 
 // Returns true if this Arena owns the buf.
@@ -233,4 +224,23 @@ func (s *Arena) bufContainer(buf []byte) (*slabClass, *chunk) {
 	slab := sc.slabs[slabIndex]
 	chunkIndex := len(slab.chunks) - (footerDistance / sc.chunkSize)
 	return sc, &(slab.chunks[chunkIndex])
+}
+
+func (sc *slabClass) addRef(c *chunk) *chunk {
+	c.refs++
+	if c.refs <= 1 {
+		panic(fmt.Sprintf("unexpected ref-count during addRef: %#v", c))
+	}
+	return c
+}
+
+func (sc *slabClass) decRef(c *chunk) *chunk {
+	c.refs--
+	if c.refs < 0 {
+		panic(fmt.Sprintf("unexpected ref-count during decRef: %#v", c))
+	}
+	if c.refs == 0 {
+		sc.pushFreeChunk(c)
+	}
+	return c
 }
