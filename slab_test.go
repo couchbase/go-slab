@@ -132,7 +132,8 @@ func TestEmptyChunk(t *testing.T) {
 	if sc.chunk(empty_chunkLoc) != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
-	if s.chunk(empty_chunkLoc) != nil {
+	sc1, c1 := s.chunk(empty_chunkLoc)
+	if  sc1 != nil || c1 != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
 }
@@ -263,12 +264,13 @@ func TestAddDecRefOnUnowned(t *testing.T) {
 func TestArenaChunk(t *testing.T) {
 	s := NewArena(1, 100, 2)
 	s.Alloc(1)
-	sc := s.slabClasses[0]
+	sc := &(s.slabClasses[0])
 	c := sc.popFreeChunk()
 	if sc.chunk(c.self) != c {
 		t.Errorf("expected chunk to be the same")
 	}
-	if s.chunk(c.self) != c {
+	sc1, c1 := s.chunk(c.self)
+	if sc1 != sc || c1 != c {
 		t.Errorf("expected chunk to be the same")
 	}
 }

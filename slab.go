@@ -84,7 +84,7 @@ func (s *Arena) AddRef(buf []byte) {
 	if sc == nil || c == nil {
 		panic("buf not from this arena")
 	}
-	sc.addRef(c)
+	c.addRef()
 }
 
 // The buf must be from an Alloc() from the same Arena.
@@ -199,11 +199,12 @@ func (s *Arena) chunkMem(c *chunk) []byte {
 	return s.slabClasses[c.self.slabClassIndex].chunkMem(c)
 }
 
-func (s *Arena) chunk(cl chunkLoc) *chunk {
+func (s *Arena) chunk(cl chunkLoc) (*slabClass, *chunk) {
 	if cl.isEmpty() {
-		return nil
+		return nil, nil
 	}
-	return s.slabClasses[cl.slabClassIndex].chunk(cl)
+	sc := &(s.slabClasses[cl.slabClassIndex])
+	return sc, sc.chunk(cl)
 }
 
 // Determine the slabClass & chunk for a buf []byte.
@@ -226,7 +227,7 @@ func (s *Arena) bufContainer(buf []byte) (*slabClass, *chunk) {
 	return sc, &(slab.chunks[chunkIndex])
 }
 
-func (sc *slabClass) addRef(c *chunk) *chunk {
+func (c *chunk) addRef() *chunk {
 	c.refs++
 	if c.refs <= 1 {
 		panic(fmt.Sprintf("unexpected ref-count during addRef: %#v", c))
