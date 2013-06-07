@@ -64,6 +64,9 @@ type chunk struct {
 // The malloc() may be nil, in which case the Arena defaults to make([]byte, size).
 func NewArena(startChunkSize int, slabSize int, growthFactor float64,
 	malloc func(size int) []byte) *Arena {
+	if malloc == nil {
+		malloc = defaultMalloc
+	}
 	s := &Arena{
 		growthFactor: growthFactor,
 		slabMagic:    rand.Int31(),
@@ -193,19 +196,18 @@ func (s *Arena) assignChunkMem(slabClassIndex int) (chunkMem []byte) {
 	return sc.chunkMem(sc.popFreeChunk())
 }
 
+func defaultMalloc(size int) []byte {
+	return make([]byte, size)
+}
+
 func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
 	sc := &(s.slabClasses[slabClassIndex])
 	chunksPerSlab := slabSize / sc.chunkSize
 	slabIndex := len(sc.slabs)
 	memorySize := (sc.chunkSize * chunksPerSlab) + SLAB_MEMORY_FOOTER_LEN
-	var memory []byte
-	if s.malloc != nil {
-		memory = s.malloc(memorySize)
-		if memory == nil {
-			return false
-		}
-	} else {
-		memory = make([]byte, memorySize)
+	memory := s.malloc(memorySize)
+	if memory == nil {
+		return false
 	}
 	slab := &slab{
 		// Re-multiplying to avoid any extra fractional chunk memory.
