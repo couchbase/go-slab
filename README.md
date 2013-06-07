@@ -16,7 +16,8 @@ manage lots of in-memory data items, such as caches and databases.
 
     arena := NewArena(48,         // The smallest slab class "chunk size" is 48 bytes.
                       1024*1024,  // Each slab will be 1MB in size.
-                      2)          // Power of 2 growth in "chunk sizes".
+                      2,          // Power of 2 growth in "chunk sizes".
+                      nil)        // Use default make([]byte) for slab memory.
 
     var buf []byte
 
@@ -89,6 +90,18 @@ to chain those smaller 4KB buffers together.  By slicing memory into
 uniform-sized, smaller-sized buffers, there may be less fragmentation
 and better overall re-use of slabs.  Additionally, the last []byte
 buffer in the chain may be smaller than 4KB to not waste space.
+
+# Application specific slab memory allocator
+
+The NewArena() function takes an optional malloc() callback function,
+which will be invoked whenever the arena needs more memory for a new
+slab.  If the supplied malloc() func is nil, the arena will default to
+instead using make([]byte, sizeNeeded).
+
+Some applications may find their own malloc() function useful for
+tracking and/or limiting the amount of slab memory that an Arena uses.
+It can be also used by advanced applications to supply mmap()'ed
+memory to an arena.
 
 # Rules
 

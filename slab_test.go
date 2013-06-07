@@ -5,7 +5,7 @@ import (
 )
 
 func TestBasics(t *testing.T) {
-	s := NewArena(1, 1024, 2)
+	s := NewArena(1, 1024, 2, nil)
 	if s == nil {
 		t.Errorf("expected new slab arena to work")
 	}
@@ -46,7 +46,7 @@ func TestBasics(t *testing.T) {
 }
 
 func TestSlabClassGrowth(t *testing.T) {
-	s := NewArena(1, 8, 2)
+	s := NewArena(1, 8, 2, nil)
 	expectSlabClasses := func(numSlabClasses int) {
 		if len(s.slabClasses) != numSlabClasses {
 			t.Errorf("expected %v slab classses, got: %v",
@@ -72,7 +72,7 @@ func TestSlabClassGrowth(t *testing.T) {
 }
 
 func TestDecRef(t *testing.T) {
-	s := NewArena(1, 8, 2)
+	s := NewArena(1, 8, 2, nil)
 	expectSlabClasses := func(numSlabClasses int) {
 		if len(s.slabClasses) != numSlabClasses {
 			t.Errorf("expected %v slab classses, got: %v",
@@ -92,7 +92,7 @@ func TestDecRef(t *testing.T) {
 }
 
 func TestAddRef(t *testing.T) {
-	s := NewArena(1, 1, 2)
+	s := NewArena(1, 1, 2, nil)
 	if !s.slabClasses[0].chunkFree.isEmpty() {
 		t.Errorf("expected no free chunks")
 	}
@@ -120,26 +120,26 @@ func TestAddRef(t *testing.T) {
 }
 
 func TestLargeAlloc(t *testing.T) {
-	s := NewArena(1, 1, 2)
+	s := NewArena(1, 1, 2, nil)
 	if s.Alloc(2) != nil {
 		t.Errorf("expected alloc larger than slab size to fail")
 	}
 }
 
 func TestEmptyChunk(t *testing.T) {
-	s := NewArena(1, 1, 2)
+	s := NewArena(1, 1, 2, nil)
 	sc := s.slabClasses[0]
 	if sc.chunk(empty_chunkLoc) != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
 	sc1, c1 := s.chunk(empty_chunkLoc)
-	if  sc1 != nil || c1 != nil {
+	if sc1 != nil || c1 != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
 }
 
 func TestEmptyChunkMem(t *testing.T) {
-	s := NewArena(1, 1, 2)
+	s := NewArena(1, 1, 2, nil)
 	sc := s.slabClasses[0]
 	if sc.chunkMem(nil) != nil {
 		t.Errorf("expected nil chunk to not have a chunk()")
@@ -156,7 +156,7 @@ func TestEmptyChunkMem(t *testing.T) {
 }
 
 func TestAddRefOnAlreadyReleasedBuf(t *testing.T) {
-	s := NewArena(1, 1, 2)
+	s := NewArena(1, 1, 2, nil)
 	a := s.Alloc(1)
 	s.DecRef(a)
 	var err interface{}
@@ -170,7 +170,7 @@ func TestAddRefOnAlreadyReleasedBuf(t *testing.T) {
 }
 
 func TestDecRefOnAlreadyReleasedBuf(t *testing.T) {
-	s := NewArena(1, 1, 2)
+	s := NewArena(1, 1, 2, nil)
 	a := s.Alloc(1)
 	s.DecRef(a)
 	var err interface{}
@@ -184,7 +184,7 @@ func TestDecRefOnAlreadyReleasedBuf(t *testing.T) {
 }
 
 func TestPushFreeChunkOnReferencedChunk(t *testing.T) {
-	s := NewArena(1, 1, 2)
+	s := NewArena(1, 1, 2, nil)
 	sc := s.slabClasses[0]
 	var err interface{}
 	func() {
@@ -197,7 +197,7 @@ func TestPushFreeChunkOnReferencedChunk(t *testing.T) {
 }
 
 func TestPopFreeChunkOnFreeChunk(t *testing.T) {
-	s := NewArena(1, 1, 2)
+	s := NewArena(1, 1, 2, nil)
 	sc := s.slabClasses[0]
 	sc.chunkFree = empty_chunkLoc
 	var err interface{}
@@ -211,7 +211,7 @@ func TestPopFreeChunkOnFreeChunk(t *testing.T) {
 }
 
 func TestPopFreeChunkOnReferencedFreeChunk(t *testing.T) {
-	s := NewArena(1, 1024, 2)
+	s := NewArena(1, 1024, 2, nil)
 	s.Alloc(1)
 	sc := s.slabClasses[0]
 	sc.chunk(sc.chunkFree).refs = 1
@@ -226,7 +226,7 @@ func TestPopFreeChunkOnReferencedFreeChunk(t *testing.T) {
 }
 
 func TestOwns(t *testing.T) {
-	s := NewArena(1, 1024, 2)
+	s := NewArena(1, 1024, 2, nil)
 	if s.Owns(nil) {
 		t.Errorf("expected false when Owns on nil buf")
 	}
@@ -242,7 +242,7 @@ func TestOwns(t *testing.T) {
 }
 
 func TestAddDecRefOnUnowned(t *testing.T) {
-	s := NewArena(1, 1024, 2)
+	s := NewArena(1, 1024, 2, nil)
 	var err interface{}
 	func() {
 		defer func() { err = recover() }()
@@ -262,7 +262,7 @@ func TestAddDecRefOnUnowned(t *testing.T) {
 }
 
 func TestArenaChunk(t *testing.T) {
-	s := NewArena(1, 100, 2)
+	s := NewArena(1, 100, 2, nil)
 	s.Alloc(1)
 	sc := &(s.slabClasses[0])
 	c := sc.popFreeChunk()
@@ -276,7 +276,7 @@ func TestArenaChunk(t *testing.T) {
 }
 
 func TestArenaChunkMem(t *testing.T) {
-	s := NewArena(1, 100, 2)
+	s := NewArena(1, 100, 2, nil)
 	s.Alloc(1)
 	sc := s.slabClasses[0]
 	c := sc.popFreeChunk()
@@ -288,9 +288,81 @@ func TestArenaChunkMem(t *testing.T) {
 	}
 }
 
+func TestMalloc(t *testing.T) {
+	mallocWorks := true
+	mallocCalls := 0
+	malloc := func(sizeNeeded int) []byte {
+		mallocCalls++
+		if mallocWorks {
+			return make([]byte, sizeNeeded)
+		}
+		return nil
+	}
+	mustNil := func(aaa []byte) {
+		if aaa != nil {
+			t.Errorf("expected array to be nil")
+		}
+	}
+	notNil := func(aaa []byte) {
+		if aaa == nil {
+			t.Errorf("expected array to be not nil")
+		}
+	}
+	s := NewArena(1, 4, 2, malloc)
+	if mallocCalls != 0 {
+		t.Errorf("expect no mallocs yet")
+	}
+	a := s.Alloc(1)
+	notNil(a)
+	if mallocCalls != 1 {
+		t.Errorf("expect 1 malloc")
+	}
+	a = s.Alloc(1)
+	notNil(a)
+	if mallocCalls != 1 {
+		t.Errorf("expect 1 malloc still, since we don't need another slab yet")
+	}
+	a = s.Alloc(2)
+	notNil(a)
+	if mallocCalls != 2 {
+		t.Errorf("expect 2 mallocs, since we need another slab")
+	}
+	a = s.Alloc(1)
+	notNil(a)
+	if mallocCalls != 2 {
+		t.Errorf("expect 2 malloc still, since we don't need another slab yet")
+	}
+	a = s.Alloc(1)
+	notNil(a)
+	if mallocCalls != 2 {
+		t.Errorf("expect 2 malloc still, since we don't need another slab yet")
+	}
+	a = s.Alloc(1)
+	notNil(a)
+	if mallocCalls != 3 {
+		t.Errorf("expect 3 mallocs, since we need another slab")
+	}
+	mallocWorks = false // Now we pretend to run out of memory.
+	a = s.Alloc(2)
+	notNil(a)
+	if mallocCalls != 3 {
+		t.Errorf("expect 3 mallocs, since don't need another slab yet")
+	}
+	a = s.Alloc(2)
+	mustNil(a)
+	if mallocCalls != 4 {
+		t.Errorf("expect 4 mallocs, since needed another slab")
+	}
+	a = s.Alloc(3)
+	mustNil(a)
+	if mallocCalls != 5 {
+		t.Errorf("expect 5 mallocs, since needed another slab")
+	}
+}
+
 func TestChaining(t *testing.T) {
-	testChaining(t, NewArena(1, 1, 2))
-	testChaining(t, NewArena(1, 100, 2))
+	testChaining(t, NewArena(1, 1, 2, nil))
+	testChaining(t, NewArena(1, 100, 2, nil))
 }
 
 func testChaining(t *testing.T, s *Arena) {
@@ -434,7 +506,7 @@ func testChaining(t *testing.T, s *Arena) {
 }
 
 func BenchmarkReffing(b *testing.B) {
-	a := NewArena(1, 1024, 2)
+	a := NewArena(1, 1024, 2, nil)
 
 	data := a.Alloc(1)
 
@@ -446,7 +518,7 @@ func BenchmarkReffing(b *testing.B) {
 }
 
 func BenchmarkAllocing(b *testing.B) {
-	a := NewArena(1, 1024, 2)
+	a := NewArena(1, 1024, 2, nil)
 
 	stuff := [][]byte{}
 	for i := 0; i < 1024; i++ {

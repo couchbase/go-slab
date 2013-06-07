@@ -23,6 +23,7 @@ type Arena struct {
 	slabClasses  []slabClass // The chunkSizes of slabClasses grows by growthFactor.
 	slabMagic    int32       // Magic number at the end of each slab memory []byte.
 	slabSize     int
+	malloc       func(size int) []byte // App-specific allocator; may be nil.
 }
 
 type slabClass struct {
@@ -59,11 +60,15 @@ type chunk struct {
 // Returns an Arena based on a slab allocator implementation.
 // The startChunkSize and slabSize should be > 0.
 // The growthFactor should be > 1.0.
-func NewArena(startChunkSize int, slabSize int, growthFactor float64) *Arena {
+// The malloc() func will be invoked when the Arena needs more memory for a new slab.
+// The malloc() may be nil, in which case the Arena defaults to make([]byte, size).
+func NewArena(startChunkSize int, slabSize int, growthFactor float64,
+	malloc func(size int) []byte) *Arena {
 	s := &Arena{
 		growthFactor: growthFactor,
 		slabMagic:    rand.Int31(),
 		slabSize:     slabSize,
+		malloc:       malloc,
 	}
 	s.addSlabClass(startChunkSize)
 	return s
@@ -71,11 +76,18 @@ func NewArena(startChunkSize int, slabSize int, growthFactor float64) *Arena {
 
 // The input buf must be a buf returned by Alloc().  Once
 // the buf's ref-count drops to 0, the Arena may re-use the buf.
+// Alloc() may return nil on errors, such as if no more free chunks
+// are available and new slab memory was not allocatable (such as if
+// malloc() returns nil).
 func (s *Arena) Alloc(bufSize int) (buf []byte) {
 	if bufSize > s.slabSize {
 		return nil
 	}
-	return s.assignChunkMem(s.findSlabClassIndex(bufSize))[0:bufSize]
+	chunkMem := s.assignChunkMem(s.findSlabClassIndex(bufSize))
+	if chunkMem == nil {
+		return nil
+	}
+	return chunkMem[0:bufSize]
 }
 
 // The input buf must be a buf returned by Alloc().
@@ -174,17 +186,30 @@ func (s *Arena) findSlabClassIndex(bufSize int) int {
 func (s *Arena) assignChunkMem(slabClassIndex int) (chunkMem []byte) {
 	sc := &(s.slabClasses[slabClassIndex])
 	if sc.chunkFree.isEmpty() {
-		sc.addSlab(slabClassIndex, sc.chunkSize, s.slabSize, s.slabMagic)
+		if !s.addSlab(slabClassIndex, s.slabSize, s.slabMagic) {
+			return nil
+		}
 	}
 	return sc.chunkMem(sc.popFreeChunk())
 }
 
-func (sc *slabClass) addSlab(slabClassIndex, chunkSize, slabSize int, slabMagic int32) {
-	chunksPerSlab := slabSize / chunkSize
+func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
+	sc := &(s.slabClasses[slabClassIndex])
+	chunksPerSlab := slabSize / sc.chunkSize
 	slabIndex := len(sc.slabs)
+	memorySize := (sc.chunkSize * chunksPerSlab) + SLAB_MEMORY_FOOTER_LEN
+	var memory []byte
+	if s.malloc != nil {
+		memory = s.malloc(memorySize)
+		if memory == nil {
+			return false
+		}
+	} else {
+		memory = make([]byte, memorySize)
+	}
 	slab := &slab{
 		// Re-multiplying to avoid any extra fractional chunk memory.
-		memory: make([]byte, (chunkSize*chunksPerSlab)+SLAB_MEMORY_FOOTER_LEN),
+		memory: memory,
 		chunks: make([]chunk, chunksPerSlab),
 	}
 	footer := slab.memory[len(slab.memory)-SLAB_MEMORY_FOOTER_LEN:]
@@ -199,6 +224,7 @@ func (sc *slabClass) addSlab(slabClassIndex, chunkSize, slabSize int, slabMagic 
 		c.self.chunkIndex = i
 		sc.pushFreeChunk(c)
 	}
+	return true
 }
 
 func (sc *slabClass) pushFreeChunk(c *chunk) {
