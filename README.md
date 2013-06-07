@@ -72,6 +72,24 @@ processed as before.
 The Arena returned from NewArena() is not concurrency safe.
 Please use your own locking.
 
+# Chainability
+
+The []byte buf's can be chained via the SetNext()/GetNext() functions.
+This may be useful for developers wishing to reduce fragmentation when
+they have wildly varying byte array sizes.
+
+For example, a server cache may need to manage many items whose sizes
+range from small to large (16 bytes to 1MB).  Instead of invoking
+Arena.Alloc() on the exact item size, the developer may wish to
+consider slicing an item into many more smaller 4KB byte arrays.
+
+For a 1MB item, for example, the application can instead invoke
+Arena.Alloc(4096) for 256 times and use the Arena.SetNext() function
+to chain those smaller 4KB buffers together.  By slicing memory into
+uniform-sized, smaller-sized buffers, there may be less fragmentation
+and better overall re-use of slabs.  Additionally, the last []byte
+buffer in the chain may be smaller than 4KB to not waste space.
+
 # Rules
 
 * You need to invoke AddRef()/DecRef() with the exact same buf
@@ -99,4 +117,5 @@ Unit test code coverage, as of 0.0.0-0-gecfea2f, is 100%.
   online game may initially fit fine into a 1K slab class, but start
   getting larger than 1K as players acquire more inventory.
   Meanwhile, most of the slab memory is "stuck" in the 1K slab class
-  when it's now needed in the 2K slab class.
+  when it's now needed in the 2K slab class.  The chainability features
+  of go-slab, of note, should also be considered in these cases.
