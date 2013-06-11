@@ -505,6 +505,24 @@ func testChaining(t *testing.T, s *Arena) {
 	}
 }
 
+func TestFindSlabClassIndex(t *testing.T) {
+	s := NewArena(1, 1024, 2, nil)
+	test := func(bufSize, idxExp int) {
+		idxAct := s.findSlabClassIndex(bufSize)
+		if idxExp != idxAct {
+			t.Errorf("expected slab class index: %v, got: %v, bufSize: %v",
+				idxExp, idxAct, bufSize)
+		}
+	}
+	test(0, 0)
+	test(1, 0)
+	test(2, 1)
+	test(3, 2)
+	test(4, 2)
+	test(5, 3)
+	test(256, 8)
+}
+
 func BenchmarkReffing(b *testing.B) {
 	a := NewArena(1, 1024, 2, nil)
 
@@ -517,20 +535,50 @@ func BenchmarkReffing(b *testing.B) {
 	}
 }
 
-func BenchmarkAllocing(b *testing.B) {
-	a := NewArena(1, 1024, 2, nil)
+func BenchmarkAllocingSize1(b *testing.B) {
+	benchmarkAllocingConstant(b, NewArena(1, 1024, 2, nil), 1)
+}
 
+func BenchmarkAllocingSize128(b *testing.B) {
+	benchmarkAllocingConstant(b, NewArena(1, 1024, 2, nil), 128)
+}
+
+func BenchmarkAllocingSize256(b *testing.B) {
+	benchmarkAllocingConstant(b, NewArena(1, 1024, 2, nil), 256)
+}
+
+func benchmarkAllocingConstant(b *testing.B, a *Arena, allocSize int) {
 	stuff := [][]byte{}
 	for i := 0; i < 1024; i++ {
-		stuff = append(stuff, a.Alloc(1))
+		stuff = append(stuff, a.Alloc(allocSize))
 	}
-
 	for _, x := range stuff {
 		a.DecRef(x)
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		a.DecRef(a.Alloc(1))
+		a.DecRef(a.Alloc(allocSize))
+	}
+}
+
+func BenchmarkAllocingModSizes(b *testing.B) {
+	benchmarkAllocingFunc(b, NewArena(1, 1024, 2, nil),
+		func(i int) int { return i % 1024 })
+}
+
+func benchmarkAllocingFunc(b *testing.B, a *Arena,
+	allocSize func(i int) int) {
+	stuff := [][]byte{}
+	for i := 0; i < 1024; i++ {
+		stuff = append(stuff, a.Alloc(allocSize(i)))
+	}
+	for _, x := range stuff {
+		a.DecRef(x)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		a.DecRef(a.Alloc(allocSize(i)))
 	}
 }
