@@ -523,6 +523,17 @@ func TestFindSlabClassIndex(t *testing.T) {
 	test(256, 8)
 }
 
+func TestGrowthFactor1Dot1(t *testing.T) {
+	s := NewArena(1, 1024, 1.1, nil)
+	a := s.Alloc(1024)
+	a[0] = 123
+	s.DecRef(a)
+	b := s.Alloc(1024)
+	if b[0] != 123 {
+		t.Errorf("expected re-used alloc mem")
+	}
+}
+
 func BenchmarkReffing(b *testing.B) {
 	a := NewArena(1, 1024, 2, nil)
 
@@ -564,6 +575,11 @@ func benchmarkAllocingConstant(b *testing.B, a *Arena, allocSize int) {
 
 func BenchmarkAllocingModSizes(b *testing.B) {
 	benchmarkAllocingFunc(b, NewArena(1, 1024, 2, nil),
+		func(i int) int { return i % 1024 })
+}
+
+func BenchmarkAllocingModSizesGrowthFactor1Dot1(b *testing.B) {
+	benchmarkAllocingFunc(b, NewArena(1, 1024, 1.1, nil),
 		func(i int) int { return i % 1024 })
 }
 

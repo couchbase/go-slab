@@ -200,14 +200,17 @@ func defaultMalloc(size int) []byte {
 func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
 	sc := &(s.slabClasses[slabClassIndex])
 	chunksPerSlab := slabSize / sc.chunkSize
+	if chunksPerSlab <= 0 {
+		chunksPerSlab = 1
+	}
 	slabIndex := len(sc.slabs)
+	// Re-multiplying to avoid any extra fractional chunk memory.
 	memorySize := (sc.chunkSize * chunksPerSlab) + SLAB_MEMORY_FOOTER_LEN
 	memory := s.malloc(memorySize)
 	if memory == nil {
 		return false
 	}
 	slab := &slab{
-		// Re-multiplying to avoid any extra fractional chunk memory.
 		memory: memory,
 		chunks: make([]chunk, chunksPerSlab),
 	}
