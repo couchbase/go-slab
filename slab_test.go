@@ -523,14 +523,16 @@ func TestFindSlabClassIndex(t *testing.T) {
 	test(256, 8)
 }
 
-func TestGrowthFactor1Dot1(t *testing.T) {
-	s := NewArena(1, 1024, 1.1, nil)
-	a := s.Alloc(1024)
-	a[0] = 123
-	s.DecRef(a)
-	b := s.Alloc(1024)
-	if b[0] != 123 {
-		t.Errorf("expected re-used alloc mem")
+func TestGrowthFactors(t *testing.T) {
+	for gf := 1.1; gf < 16.7; gf = gf + 0.1 {
+		s := NewArena(1, 1024, gf, nil)
+		a := s.Alloc(1024)
+		a[0] = 123
+		s.DecRef(a)
+		b := s.Alloc(1024)
+		if b[0] != 123 {
+			t.Errorf("expected re-used alloc mem")
+		}
 	}
 }
 
