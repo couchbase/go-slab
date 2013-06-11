@@ -178,6 +178,7 @@ func (s *Arena) findSlabClassIndex(bufSize int) int {
 		slabClass := &(s.slabClasses[len(s.slabClasses)-1])
 		nextChunkSize := float64(slabClass.chunkSize) * s.growthFactor
 		s.addSlabClass(int(math.Ceil(nextChunkSize)))
+		return s.findSlabClassIndex(bufSize)
 	}
 	return i
 }
