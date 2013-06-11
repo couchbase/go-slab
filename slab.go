@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"sort"
 )
 
 type Arena struct {
@@ -54,7 +55,7 @@ func (cl *chunkLoc) isEmpty() bool {
 type chunk struct {
 	refs int32    // Ref-count.
 	self chunkLoc // The self is the chunkLoc for this chunk.
-	next chunkLoc // Used when the chunk is in the free-list.
+	next chunkLoc // Used when the chunk is in the free-list or when chained.
 }
 
 // Returns an Arena based on a slab allocator implementation.
@@ -171,19 +172,14 @@ func (s *Arena) addSlabClass(chunkSize int) {
 }
 
 func (s *Arena) findSlabClassIndex(bufSize int) int {
-	curr := 0
-	for {
-		// TODO: Use binary search instead of linear walk.
-		slabClass := &(s.slabClasses[curr])
-		if bufSize <= slabClass.chunkSize {
-			return curr
-		}
-		if curr+1 >= len(s.slabClasses) {
-			nextChunkSize := float64(slabClass.chunkSize) * s.growthFactor
-			s.addSlabClass(int(math.Ceil(nextChunkSize)))
-		}
-		curr++
+	i := sort.Search(len(s.slabClasses),
+		func(i int) bool { return bufSize <= s.slabClasses[i].chunkSize })
+	if i >= len(s.slabClasses) {
+		slabClass := &(s.slabClasses[len(s.slabClasses)-1])
+		nextChunkSize := float64(slabClass.chunkSize) * s.growthFactor
+		s.addSlabClass(int(math.Ceil(nextChunkSize)))
 	}
+	return i
 }
 
 func (s *Arena) assignChunkMem(slabClassIndex int) (chunkMem []byte) {

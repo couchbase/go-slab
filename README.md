@@ -122,7 +122,6 @@ Unit test code coverage, as of 0.0.0-0-gecfea2f, is 100%.
 
 # TODO
 
-* Use a binary search to find a slabClass faster.
 * Currently, slabs that are allocated are never freed.
 * Memory for one slabClass is never reassigned to another slabClass.
   Memory reassignment might be useful whenever data sizes of items in
