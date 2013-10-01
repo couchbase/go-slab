@@ -55,10 +55,10 @@ http://en.wikipedia.org/wiki/Slab_allocation
 Each arena tracks one or more slabClass structs.  Each slabClass
 manages a different "chunk size", where chunk sizes are computed using
 a simple "growth factor" (e.g., the "power of 2 growth" in the above
-example).  Each slabClass also tracks a zero or more slab structs,
-where every slab in a slabClass will all have the same chunk size.  A
-slab manages a (usually large) continguous array of memory bytes (1MB
-from the above example), and the slab's memory is subdivided into many
+example).  Each slabClass also tracks zero or more slabs, where every
+slab tracked by a slabClass will all have the same chunk size.  A slab
+manages a (usually large) continguous array of memory bytes (1MB from
+the above example), and the slab's memory is subdivided into many
 fixed-sized chunks of the same chunk size.  All the chunks in a new
 slab are placed on a free-list that's part of the slabClass.
 
@@ -98,7 +98,7 @@ which will be invoked whenever the arena needs more memory for a new
 slab.  If the supplied malloc() func is nil, the arena will default to
 instead using make([]byte, sizeNeeded).
 
-Some applications may find their own malloc() function useful for
+An application-specific own malloc() function can be useful for
 tracking and/or limiting the amount of slab memory that an Arena uses.
 It can be also used by advanced applications to supply mmap()'ed
 memory to an arena.
