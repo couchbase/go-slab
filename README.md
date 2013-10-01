@@ -111,6 +111,9 @@ memory to an arena.
   e.g., if your slab size is 1MB, then Alloc(1024 * 1024 + 1) will fail.
 * Careful with your ref-counting -- that's the fundamental tradeoff
   with now trying to avoid GC.
+* Do not grow or append() on the slices returned by Alloc().
+* Do not use cap() on slices returned by Alloc(), as that has
+  information / abstraction "leakage" and should not be depended on.
 
 # LICENSE
 
