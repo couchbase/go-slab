@@ -4,7 +4,7 @@ A slab allocator library in the Go Programming Language.
 
 # Who is this for
 
-This library may be interestng to you if you wish to reduce garbage
+This library may be interesting to you if you wish to reduce garbage
 collection (e.g. stop-the-world GC) performance issues in your golang
 programs, allowing you to switch to explicit byte array memory
 management techniques.
