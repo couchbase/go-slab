@@ -78,8 +78,6 @@ func NewArena(startChunkSize int, slabSize int, growthFactor float64,
 	return s
 }
 
-// The input buf must be a buf returned by Alloc().  Once
-// the buf's ref-count drops to 0, the Arena may re-use the buf.
 // Alloc() may return nil on errors, such as if no more free chunks
 // are available and new slab memory was not allocatable (such as if
 // malloc() returns nil).
@@ -94,7 +92,7 @@ func (s *Arena) Alloc(bufSize int) (buf []byte) {
 	return chunkMem[0:bufSize]
 }
 
-// The input buf must be a buf returned by Alloc().
+// The input buf must be from an Alloc() from the same Arena.
 func (s *Arena) AddRef(buf []byte) {
 	sc, c := s.bufContainer(buf)
 	if sc == nil || c == nil {
@@ -103,7 +101,8 @@ func (s *Arena) AddRef(buf []byte) {
 	c.addRef()
 }
 
-// The buf must be from an Alloc() from the same Arena.
+// The input buf must be from an Alloc() from the same Arena.  Once
+// the buf's ref-count drops to 0, the Arena may re-use the buf.
 func (s *Arena) DecRef(buf []byte) {
 	sc, c := s.bufContainer(buf)
 	if sc == nil || c == nil {
