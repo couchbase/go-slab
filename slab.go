@@ -103,12 +103,14 @@ func (s *Arena) AddRef(buf []byte) {
 
 // The input buf must be from an Alloc() from the same Arena.  Once
 // the buf's ref-count drops to 0, the Arena may re-use the buf.
-func (s *Arena) DecRef(buf []byte) {
+// Returns true if this was the last DecRef() invocation (ref count
+// drops to 0), meaning that the buf might be reused by Arena.Alloc().
+func (s *Arena) DecRef(buf []byte) bool {
 	sc, c := s.bufContainer(buf)
 	if sc == nil || c == nil {
 		panic("buf not from this arena")
 	}
-	s.decRef(sc, c)
+	return s.decRef(sc, c)
 }
 
 // Returns true if this Arena owns the buf.
@@ -308,7 +310,7 @@ func (c *chunk) addRef() *chunk {
 	return c
 }
 
-func (s *Arena) decRef(sc *slabClass, c *chunk) *chunk {
+func (s *Arena) decRef(sc *slabClass, c *chunk) bool {
 	c.refs--
 	if c.refs < 0 {
 		panic(fmt.Sprintf("unexpected ref-count during decRef: %#v", c))
@@ -320,6 +322,7 @@ func (s *Arena) decRef(sc *slabClass, c *chunk) *chunk {
 		}
 		c.next = empty_chunkLoc
 		sc.pushFreeChunk(c)
+		return true
 	}
-	return c
+	return false
 }

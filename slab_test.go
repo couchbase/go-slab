@@ -21,7 +21,9 @@ func TestBasics(t *testing.T) {
 			cap(a), 1+SLAB_MEMORY_FOOTER_LEN)
 	}
 	a[0] = 66
-	s.DecRef(a)
+	if s.DecRef(a) != true {
+		t.Errorf("expected DecRef to be the last one")
+	}
 	b := s.Alloc(1)
 	if b == nil {
 		t.Errorf("expected alloc to work")
@@ -37,8 +39,12 @@ func TestBasics(t *testing.T) {
 		t.Errorf("expected alloc to return last freed buf")
 	}
 	s.AddRef(b)
-	s.DecRef(b)
-	s.DecRef(b)
+	if s.DecRef(b) != false {
+		t.Errorf("expected DecRef() to not be the last")
+	}
+	if s.DecRef(b) != true {
+		t.Errorf("expected DecRef() to be the last")
+	}
 	c := s.Alloc(1)
 	if c[0] != 66 {
 		t.Errorf("expected alloc to return last freed buf")
