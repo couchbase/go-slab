@@ -606,3 +606,29 @@ func benchmarkAllocingFunc(b *testing.B, a *Arena,
 		a.DecRef(a.Alloc(allocSize(i)))
 	}
 }
+
+func TestChainingSizes(t *testing.T) {
+	testChainingSizes(t, NewArena(1, 100, 2, nil))
+	testChainingSizes(t, NewArena(1, 200, 8, nil))
+}
+
+func testChainingSizes(t *testing.T, s *Arena) {
+	curr := s.Alloc(91)
+	for i := 90; i > 0; i-- {
+		next := s.Alloc(100)[0:i]
+		s.SetNext(next, curr)
+		curr = next
+	}
+	i := 1
+	for x := curr; x != nil; x = s.GetNext(x) {
+		if len(x) != i {
+			t.Fatalf("expected len(x): %d, got: %d", i, len(x))
+		}
+		i++
+	}
+
+	b := s.Alloc(5)
+	if s.GetNext(b) != nil {
+		t.Fatalf("expected nil")
+	}
+}
