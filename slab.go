@@ -44,12 +44,14 @@ type chunkLoc struct {
 	slabClassIndex int
 	slabIndex      int
 	chunkIndex     int
+	chunkSize      int
 }
 
-var empty_chunkLoc = chunkLoc{-1, -1, -1} // A sentinel.
+var empty_chunkLoc = chunkLoc{-1, -1, -1, -1} // A sentinel.
 
 func (cl *chunkLoc) isEmpty() bool {
-	return cl.slabClassIndex == -1 && cl.slabIndex == -1 && cl.chunkIndex == -1
+	return cl.slabClassIndex == -1 && cl.slabIndex == -1 &&
+		cl.chunkIndex == -1 && cl.chunkSize == -1
 }
 
 type chunk struct {
@@ -136,7 +138,7 @@ func (s *Arena) GetNext(buf []byte) (bufNext []byte) {
 		return nil
 	}
 	cNext.addRef()
-	return s.chunkMem(cNext)
+	return s.chunkMem(cNext)[0:c.next.chunkSize]
 }
 
 // The buf's from an Arena can be chained, where buf will own an
@@ -162,6 +164,7 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 		}
 		cNewNext.addRef()
 		c.next = cNewNext.self
+		c.next.chunkSize = len(bufNext)
 	}
 }
 
@@ -225,6 +228,7 @@ func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
 		c.self.slabClassIndex = slabClassIndex
 		c.self.slabIndex = slabIndex
 		c.self.chunkIndex = i
+		c.self.chunkSize = sc.chunkSize
 		sc.pushFreeChunk(c)
 	}
 	return true
