@@ -25,12 +25,25 @@ type Arena struct {
 	slabMagic    int32       // Magic number at the end of each slab memory []byte.
 	slabSize     int
 	malloc       func(size int) []byte // App-specific allocator; may be nil.
+
+	numAllocs         int64
+	numAddRefs        int64
+	numDecRefs        int64
+	numGetNexts       int64
+	numSetNexts       int64
+	numMallocs        int64
+	numMallocErrs     int64
+	numTooBigErrs     int64
+	numNoChunkMemErrs int64
 }
 
 type slabClass struct {
 	slabs     []*slab  // A growing array of slabs.
 	chunkSize int      // Each slab is sliced into fixed-sized chunks.
 	chunkFree chunkLoc // Chunks are tracked in a free-list per slabClass.
+
+	numChunks     int64
+	numChunksFree int64
 }
 
 type slab struct {
@@ -84,11 +97,14 @@ func NewArena(startChunkSize int, slabSize int, growthFactor float64,
 // are available and new slab memory was not allocatable (such as if
 // malloc() returns nil).
 func (s *Arena) Alloc(bufSize int) (buf []byte) {
+	s.numAllocs++
 	if bufSize > s.slabSize {
+		s.numTooBigErrs++
 		return nil
 	}
 	chunkMem := s.assignChunkMem(s.findSlabClassIndex(bufSize))
 	if chunkMem == nil {
+		s.numNoChunkMemErrs++
 		return nil
 	}
 	return chunkMem[0:bufSize]
@@ -96,6 +112,7 @@ func (s *Arena) Alloc(bufSize int) (buf []byte) {
 
 // The input buf must be from an Alloc() from the same Arena.
 func (s *Arena) AddRef(buf []byte) {
+	s.numAddRefs++
 	sc, c := s.bufContainer(buf)
 	if sc == nil || c == nil {
 		panic("buf not from this arena")
@@ -108,6 +125,7 @@ func (s *Arena) AddRef(buf []byte) {
 // Returns true if this was the last DecRef() invocation (ref count
 // drops to 0), meaning that the buf might be reused by Arena.Alloc().
 func (s *Arena) DecRef(buf []byte) bool {
+	s.numDecRefs++
 	sc, c := s.bufContainer(buf)
 	if sc == nil || c == nil {
 		panic("buf not from this arena")
@@ -126,6 +144,7 @@ func (s *Arena) Owns(buf []byte) bool {
 // ref-count on bufNext and must invoke DecRef(bufNext) when the
 // caller is finished using bufNext.
 func (s *Arena) GetNext(buf []byte) (bufNext []byte) {
+	s.numGetNexts++
 	sc, c := s.bufContainer(buf)
 	if sc == nil || c == nil {
 		panic("buf not from this arena")
@@ -145,6 +164,7 @@ func (s *Arena) GetNext(buf []byte) (bufNext []byte) {
 // AddRef() on bufNext.  When buf's ref-count goes to zero, it will
 // call DecRef() on bufNext.  The bufNext may be nil.
 func (s *Arena) SetNext(buf, bufNext []byte) {
+	s.numSetNexts++
 	sc, c := s.bufContainer(buf)
 	if sc == nil || c == nil {
 		panic("buf not from this arena")
@@ -210,8 +230,10 @@ func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
 	slabIndex := len(sc.slabs)
 	// Re-multiplying to avoid any extra fractional chunk memory.
 	memorySize := (sc.chunkSize * chunksPerSlab) + SLAB_MEMORY_FOOTER_LEN
+	s.numMallocs++
 	memory := s.malloc(memorySize)
 	if memory == nil {
+		s.numMallocErrs++
 		return false
 	}
 	slab := &slab{
@@ -231,6 +253,7 @@ func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
 		c.self.chunkSize = sc.chunkSize
 		sc.pushFreeChunk(c)
 	}
+	sc.numChunks += int64(len(slab.chunks))
 	return true
 }
 
@@ -240,6 +263,7 @@ func (sc *slabClass) pushFreeChunk(c *chunk) {
 	}
 	c.next = sc.chunkFree
 	sc.chunkFree = c.self
+	sc.numChunksFree++
 }
 
 func (sc *slabClass) popFreeChunk() *chunk {
@@ -253,6 +277,10 @@ func (sc *slabClass) popFreeChunk() *chunk {
 	c.refs = 1
 	sc.chunkFree = c.next
 	c.next = empty_chunkLoc
+	sc.numChunksFree--
+	if sc.numChunksFree < 0 {
+		panic("popFreeChunk() got < 0 numChunksFree")
+	}
 	return c
 }
 
@@ -329,4 +357,27 @@ func (s *Arena) decRef(sc *slabClass, c *chunk) bool {
 		return true
 	}
 	return false
+}
+
+func (s *Arena) Stats(m map[string]int64) map[string]int64 {
+	m["numSlabClasses"] = int64(len(s.slabClasses))
+	m["numAllocs"] = s.numAllocs
+	m["numAddRefs"] = s.numAddRefs
+	m["numDecRefs"] = s.numDecRefs
+	m["numGetNexts"] = s.numGetNexts
+	m["numSetNexts"] = s.numSetNexts
+	m["numMallocs"] = s.numMallocs
+	m["numMallocErrs"] = s.numMallocErrs
+	m["numTooBigErrs"] = s.numTooBigErrs
+	m["numNoChunkMemErrs"] = s.numNoChunkMemErrs
+
+	for i, sc := range s.slabClasses {
+		prefix := fmt.Sprintf("slabClass-%06d-", i)
+		m[prefix+"numSlabs"] = int64(len(sc.slabs))
+		m[prefix+"chunkSize"] = int64(sc.chunkSize)
+		m[prefix+"numChunks"] = int64(sc.numChunks)
+		m[prefix+"numChunksFree"] = int64(sc.numChunksFree)
+		m[prefix+"numChunksInUse"] = int64(sc.numChunks - sc.numChunksFree)
+	}
+	return m
 }

@@ -1,6 +1,7 @@
 package slab
 
 import (
+	"sort"
 	"testing"
 )
 
@@ -630,5 +631,39 @@ func testChainingSizes(t *testing.T, s *Arena) {
 	b := s.Alloc(5)
 	if s.GetNext(b) != nil {
 		t.Fatalf("expected nil")
+	}
+}
+
+func TestStats(t *testing.T) {
+	a := NewArena(1, 1024*1024, 2, nil)
+	a.Alloc(3)
+	a.DecRef(a.Alloc(17))
+	a.Alloc(4096)
+	stats := a.Stats(map[string]int64{})
+	if len(stats) == 0 {
+		t.Errorf("expected some stats")
+	}
+	if stats["numAllocs"] != 3 || stats["numDecRefs"] != 1 {
+		t.Errorf("expected stats did not match")
+	}
+	if stats["slabClass-000002-numChunksInUse"] != 1 ||
+		stats["slabClass-000005-numChunksInUse"] != 0 {
+		t.Errorf("expected stats did not match InUse")
+	}
+	if stats["slabClass-000012-chunkSize"] != 4096 ||
+		stats["slabClass-000012-numChunks"] != 256 ||
+		stats["slabClass-000012-numChunksFree"] != 255 ||
+		stats["slabClass-000012-numChunksInUse"] != 1 ||
+		stats["slabClass-000012-numSlabs"] != 1 {
+		t.Errorf("expected stats did not match slabClass 12")
+	}
+
+	mk := []string{}
+	for k, _ := range stats {
+		mk = append(mk, k)
+	}
+	sort.Strings(mk)
+	for _, k := range mk {
+		t.Logf("%s = %d", k, stats[k])
 	}
 }
