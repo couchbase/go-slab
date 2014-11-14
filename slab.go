@@ -75,7 +75,7 @@ type chunk struct {
 	next chunkLoc // Used when the chunk is in the free-list or when chained.
 }
 
-// Returns an Arena based on a slab allocator implementation.
+// NewArena returns an Arena to manage memory based on a slab allocator approach.
 // The startChunkSize and slabSize should be > 0.
 // The growthFactor should be > 1.0.
 // The malloc() func will be invoked when the Arena needs more memory for a new slab.
@@ -95,7 +95,7 @@ func NewArena(startChunkSize int, slabSize int, growthFactor float64,
 	return s
 }
 
-// Alloc() may return nil on errors, such as if no more free chunks
+// Alloc may return nil on errors, such as if no more free chunks
 // are available and new slab memory was not allocatable (such as if
 // malloc() returns nil).
 func (s *Arena) Alloc(bufSize int) (buf []byte) {
@@ -112,7 +112,8 @@ func (s *Arena) Alloc(bufSize int) (buf []byte) {
 	return chunkMem[0:bufSize]
 }
 
-// The input buf must be from an Alloc() from the same Arena.
+// AddRef increase the ref count on an input buf.  The input buf must
+// be from an Alloc() from the same Arena.
 func (s *Arena) AddRef(buf []byte) {
 	s.numAddRefs++
 	sc, c := s.bufContainer(buf)
@@ -122,10 +123,10 @@ func (s *Arena) AddRef(buf []byte) {
 	c.addRef()
 }
 
-// The input buf must be from an Alloc() from the same Arena.  Once
-// the buf's ref-count drops to 0, the Arena may re-use the buf.
-// Returns true if this was the last DecRef() invocation (ref count
-// drops to 0), meaning that the buf might be reused by Arena.Alloc().
+// DecRef decreases the ref count on an input buf.  The input buf must
+// be from an Alloc() from the same Arena.  Once the buf's ref-count
+// drops to 0, the Arena may reuse the buf.  Returns true if this was
+// the last DecRef() invocation (ref count reached 0).
 func (s *Arena) DecRef(buf []byte) bool {
 	s.numDecRefs++
 	sc, c := s.bufContainer(buf)
@@ -135,13 +136,14 @@ func (s *Arena) DecRef(buf []byte) bool {
 	return s.decRef(sc, c)
 }
 
-// Returns true if this Arena owns the buf.
+// Owns returns true if this Arena owns the buf.
 func (s *Arena) Owns(buf []byte) bool {
 	sc, c := s.bufContainer(buf)
 	return sc != nil && c != nil
 }
 
-// The buf's from an Arena can be chained.  The returned bufNext may
+// GetNext returns the next chained buf for the given input buf.  The
+// buf's managed by an Arena can be chained.  The returned bufNext may
 // be nil.  When the returned bufNext is non-nil, the caller owns a
 // ref-count on bufNext and must invoke DecRef(bufNext) when the
 // caller is finished using bufNext.
@@ -162,9 +164,10 @@ func (s *Arena) GetNext(buf []byte) (bufNext []byte) {
 	return s.chunkMem(cNext)[0:c.next.chunkSize]
 }
 
-// The buf's from an Arena can be chained, where buf will own an
-// AddRef() on bufNext.  When buf's ref-count goes to zero, it will
-// call DecRef() on bufNext.  The bufNext may be nil.
+// SetNext associates the next chain buf following the input buf to be
+// bufNext.  The buf's from an Arena can be chained, where buf will
+// own an AddRef() on bufNext.  When buf's ref-count goes to zero, it
+// will call DecRef() on bufNext.  The bufNext may be nil.
 func (s *Arena) SetNext(buf, bufNext []byte) {
 	s.numSetNexts++
 	sc, c := s.bufContainer(buf)
@@ -361,6 +364,7 @@ func (s *Arena) decRef(sc *slabClass, c *chunk) bool {
 	return false
 }
 
+// Stats fills an input map with runtime metrics about the Arena.
 func (s *Arena) Stats(m map[string]int64) map[string]int64 {
 	m["numSlabClasses"] = int64(len(s.slabClasses))
 	m["numAllocs"] = s.numAllocs
@@ -372,7 +376,6 @@ func (s *Arena) Stats(m map[string]int64) map[string]int64 {
 	m["numMallocErrs"] = s.numMallocErrs
 	m["numTooBigErrs"] = s.numTooBigErrs
 	m["numNoChunkMemErrs"] = s.numNoChunkMemErrs
-
 	for i, sc := range s.slabClasses {
 		prefix := fmt.Sprintf("slabClass-%06d-", i)
 		m[prefix+"numSlabs"] = int64(len(sc.slabs))
