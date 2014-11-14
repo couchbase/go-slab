@@ -17,9 +17,9 @@ func TestBasics(t *testing.T) {
 	if len(a) != 1 {
 		t.Errorf("expected alloc to give right size buf")
 	}
-	if cap(a) != 1+SLAB_MEMORY_FOOTER_LEN {
+	if cap(a) != 1+slab_memory_footer_len {
 		t.Errorf("expected alloc cap to match algorithm, got: %v vs %v",
-			cap(a), 1+SLAB_MEMORY_FOOTER_LEN)
+			cap(a), 1+slab_memory_footer_len)
 	}
 	a[0] = 66
 	if s.DecRef(a) != true {
@@ -32,9 +32,9 @@ func TestBasics(t *testing.T) {
 	if len(b) != 1 {
 		t.Errorf("expected alloc to give right size buf")
 	}
-	if cap(b) != 1+SLAB_MEMORY_FOOTER_LEN {
+	if cap(b) != 1+slab_memory_footer_len {
 		t.Errorf("expected alloc cap to match algorithm, got: %v vs %v",
-			cap(b), 1+SLAB_MEMORY_FOOTER_LEN)
+			cap(b), 1+slab_memory_footer_len)
 	}
 	if b[0] != 66 {
 		t.Errorf("expected alloc to return last freed buf")
@@ -240,7 +240,7 @@ func TestOwns(t *testing.T) {
 	if s.Owns(make([]byte, 1)) {
 		t.Errorf("expected false when Owns on small buf")
 	}
-	if s.Owns(make([]byte, 1+SLAB_MEMORY_FOOTER_LEN)) {
+	if s.Owns(make([]byte, 1+slab_memory_footer_len)) {
 		t.Errorf("expected false whens Owns on non-magic buf")
 	}
 	if !s.Owns(s.Alloc(1)) {

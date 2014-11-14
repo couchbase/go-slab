@@ -20,6 +20,7 @@ import (
 	"sort"
 )
 
+// An Arena manages a set of slab classes and memory.
 type Arena struct {
 	growthFactor float64
 	slabClasses  []slabClass // The chunkSizes of slabClasses grows by growthFactor.
@@ -48,11 +49,11 @@ type slabClass struct {
 }
 
 type slab struct {
-	memory []byte  // len(memory) == slabSize + SLAB_MEMORY_FOOTER_LEN.
+	memory []byte  // len(memory) == slabSize + slab_memory_footer_len.
 	chunks []chunk // Parallel array of chunk metadata.
 }
 
-const SLAB_MEMORY_FOOTER_LEN int = 4 + 4 + 4 // slabClassIndex + slabIndex + slabMagic.
+const slab_memory_footer_len int = 4 + 4 + 4 // slabClassIndex + slabIndex + slabMagic.
 
 type chunkLoc struct {
 	slabClassIndex int
@@ -230,7 +231,7 @@ func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
 	}
 	slabIndex := len(sc.slabs)
 	// Re-multiplying to avoid any extra fractional chunk memory.
-	memorySize := (sc.chunkSize * chunksPerSlab) + SLAB_MEMORY_FOOTER_LEN
+	memorySize := (sc.chunkSize * chunksPerSlab) + slab_memory_footer_len
 	s.numMallocs++
 	memory := s.malloc(memorySize)
 	if memory == nil {
@@ -241,7 +242,7 @@ func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
 		memory: memory,
 		chunks: make([]chunk, chunksPerSlab),
 	}
-	footer := slab.memory[len(slab.memory)-SLAB_MEMORY_FOOTER_LEN:]
+	footer := slab.memory[len(slab.memory)-slab_memory_footer_len:]
 	binary.BigEndian.PutUint32(footer[0:4], uint32(slabClassIndex))
 	binary.BigEndian.PutUint32(footer[4:8], uint32(slabIndex))
 	binary.BigEndian.PutUint32(footer[8:12], uint32(slabMagic))
@@ -317,11 +318,11 @@ func (s *Arena) chunk(cl chunkLoc) (*slabClass, *chunk) {
 
 // Determine the slabClass & chunk for a buf []byte.
 func (s *Arena) bufContainer(buf []byte) (*slabClass, *chunk) {
-	if buf == nil || cap(buf) <= SLAB_MEMORY_FOOTER_LEN {
+	if buf == nil || cap(buf) <= slab_memory_footer_len {
 		return nil, nil
 	}
 	rest := buf[:cap(buf)]
-	footerDistance := len(rest) - SLAB_MEMORY_FOOTER_LEN
+	footerDistance := len(rest) - slab_memory_footer_len
 	footer := rest[footerDistance:]
 	slabClassIndex := binary.BigEndian.Uint32(footer[0:4])
 	slabIndex := binary.BigEndian.Uint32(footer[4:8])
