@@ -136,10 +136,10 @@ func TestLargeAlloc(t *testing.T) {
 func TestEmptyChunk(t *testing.T) {
 	s := NewArena(1, 1, 2, nil)
 	sc := s.slabClasses[0]
-	if sc.chunk(empty_chunkLoc) != nil {
+	if sc.chunk(emptyChunkLoc) != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
-	sc1, c1 := s.chunk(empty_chunkLoc)
+	sc1, c1 := s.chunk(emptyChunkLoc)
 	if sc1 != nil || c1 != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
@@ -151,13 +151,13 @@ func TestEmptyChunkMem(t *testing.T) {
 	if sc.chunkMem(nil) != nil {
 		t.Errorf("expected nil chunk to not have a chunk()")
 	}
-	if sc.chunkMem(&chunk{self: empty_chunkLoc}) != nil {
+	if sc.chunkMem(&chunk{self: emptyChunkLoc}) != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
 	if s.chunkMem(nil) != nil {
 		t.Errorf("expected nil chunk to not have a chunk()")
 	}
-	if s.chunkMem(&chunk{self: empty_chunkLoc}) != nil {
+	if s.chunkMem(&chunk{self: emptyChunkLoc}) != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
 }
@@ -206,7 +206,7 @@ func TestPushFreeChunkOnReferencedChunk(t *testing.T) {
 func TestPopFreeChunkOnFreeChunk(t *testing.T) {
 	s := NewArena(1, 1, 2, nil)
 	sc := s.slabClasses[0]
-	sc.chunkFree = empty_chunkLoc
+	sc.chunkFree = emptyChunkLoc
 	var err interface{}
 	func() {
 		defer func() { err = recover() }()

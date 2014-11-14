@@ -62,7 +62,7 @@ type chunkLoc struct {
 	chunkSize      int
 }
 
-var empty_chunkLoc = chunkLoc{-1, -1, -1, -1} // A sentinel.
+var emptyChunkLoc = chunkLoc{-1, -1, -1, -1} // A sentinel.
 
 func (cl *chunkLoc) isEmpty() bool {
 	return cl.slabClassIndex == -1 && cl.slabIndex == -1 &&
@@ -181,7 +181,7 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 	if scOldNext != nil && cOldNext != nil {
 		s.decRef(scOldNext, cOldNext)
 	}
-	c.next = empty_chunkLoc
+	c.next = emptyChunkLoc
 	if bufNext != nil {
 		scNewNext, cNewNext := s.bufContainer(bufNext)
 		if scNewNext == nil || cNewNext == nil {
@@ -196,7 +196,7 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 func (s *Arena) addSlabClass(chunkSize int) {
 	s.slabClasses = append(s.slabClasses, slabClass{
 		chunkSize: chunkSize,
-		chunkFree: empty_chunkLoc,
+		chunkFree: emptyChunkLoc,
 	})
 }
 
@@ -281,7 +281,7 @@ func (sc *slabClass) popFreeChunk() *chunk {
 	}
 	c.refs = 1
 	sc.chunkFree = c.next
-	c.next = empty_chunkLoc
+	c.next = emptyChunkLoc
 	sc.numChunksFree--
 	if sc.numChunksFree < 0 {
 		panic("popFreeChunk() got < 0 numChunksFree")
@@ -357,7 +357,7 @@ func (s *Arena) decRef(sc *slabClass, c *chunk) bool {
 		if scNext != nil && cNext != nil {
 			s.decRef(scNext, cNext)
 		}
-		c.next = empty_chunkLoc
+		c.next = emptyChunkLoc
 		sc.pushFreeChunk(c)
 		return true
 	}
