@@ -61,8 +61,8 @@ example).  Each slabClass also tracks zero or more slabs, where every
 slab tracked by a slabClass will all have the same chunk size.  A slab
 manages a (usually large) continguous array of memory bytes (1MB from
 the above example), and the slab's memory is subdivided into many
-fixed-sized chunks of the same chunk size.  All the chunks in a new
-slab are placed on a free-list that's part of the slabClass.
+chunks of the same chunk size.  All the chunks in a new slab are
+placed on a free-list that's part of the slabClass.
 
 When Alloc() is invoked, the first "large enough" slabClass is found,
 and a chunk from the free-list is taken to service the allocation.  If
@@ -97,13 +97,13 @@ buffer in the chain may be smaller than 4KB to not waste space.
 
 The NewArena() function takes an optional malloc() callback function,
 which will be invoked whenever the arena needs more memory for a new
-slab.  If the supplied malloc() func is nil, the arena will default to
-instead using make([]byte, sizeNeeded).
+slab.  If the malloc() func is nil, the arena will default to using
+the builtin make([]byte, sizeNeeded).
 
-An application-specific own malloc() function can be useful for
-tracking and/or limiting the amount of slab memory that an Arena uses.
-It can be also used by advanced applications to supply mmap()'ed
-memory to an arena.
+An application-specific malloc() func can be useful for tracking
+and/or limiting the amount of slab memory that an Arena uses.  It can
+be also used by advanced applications to supply mmap()'ed memory to an
+Arena.
 
 # Rules
 
@@ -123,7 +123,7 @@ Apache 2 license.
 
 # Testing
 
-Unit test code coverage, as of 0.0.0-0-gecfea2f, is 100%.
+Unit test code coverage, as of version 0.0.0-42-g60296ca, is 99.4%.
 
 # TODO
 
@@ -132,7 +132,7 @@ Unit test code coverage, as of 0.0.0-0-gecfea2f, is 100%.
   Memory reassignment might be useful whenever data sizes of items in
   long-running systems change over time.  For example, sessions in an
   online game may initially fit fine into a 1K slab class, but start
-  getting larger than 1K as players acquire more inventory.
+  getting larger than 1K as long time players acquire more inventory.
   Meanwhile, most of the slab memory is "stuck" in the 1K slab class
   when it's now needed in the 2K slab class.  The chainability features
   of go-slab, of note, should also be considered in these cases.
