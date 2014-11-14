@@ -2,6 +2,8 @@
 
 A slab allocator library in the Go Programming Language.
 
+[![GoDoc](https://godoc.org/github.com/steveyen/go-slab?status.svg)](https://godoc.org/github.com/steveyen/go-slab) [![Build Status](https://drone.io/github.com/steveyen/go-slab/status.png)](https://drone.io/github.com/steveyen/go-slab/latest) [![Coverage Status](https://coveralls.io/repos/steveyen/go-slab/badge.png)](https://coveralls.io/r/steveyen/go-slab)
+
 # Who is this for
 
 This library may be interesting to you if you wish to reduce garbage
