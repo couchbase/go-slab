@@ -659,7 +659,7 @@ func TestStats(t *testing.T) {
 	}
 
 	mk := []string{}
-	for k, _ := range stats {
+	for k := range stats {
 		mk = append(mk, k)
 	}
 	sort.Strings(mk)
