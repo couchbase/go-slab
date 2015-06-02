@@ -20,6 +20,22 @@ import (
 	"sort"
 )
 
+// An opaque, logical reference to bytes managed by an Arena.  See
+// Arena.AllocLoc().  A Loc struct is GC friendly, in that a Loc does
+// not have pointer fields that the garbage collector must traverse.
+type Loc struct {
+	chunkLoc chunkLoc
+	bufSize  int
+}
+
+func NilLoc() Loc {
+	return Loc{chunkLoc: nilChunkLoc, bufSize: 0}
+}
+
+func (loc *Loc) IsNil() bool {
+	return loc.chunkLoc.IsNil()
+}
+
 // An Arena manages a set of slab classes and memory.
 type Arena struct {
 	growthFactor float64
@@ -41,9 +57,9 @@ type Arena struct {
 }
 
 type slabClass struct {
-	slabs     []*slab // A growing array of slabs.
-	chunkSize int     // Each slab is sliced into fixed-sized chunks.
-	chunkFree Loc     // Chunks are tracked in a free-list per slabClass.
+	slabs     []*slab  // A growing array of slabs.
+	chunkSize int      // Each slab is sliced into fixed-sized chunks.
+	chunkFree chunkLoc // Chunks are tracked in a free-list per slabClass.
 
 	numChunks     int64
 	numChunksFree int64
@@ -60,26 +76,22 @@ type slab struct {
 const slabMemoryFooterLen int = 4 + 4 + 4 // slabClassIndex + slabIndex + slabMagic.
 
 type chunk struct {
-	refs int32 // Ref-count.
-	self Loc   // The self is the Loc for this chunk.
-	next Loc   // Used when the chunk is in the free-list or when chained.
+	refs int32    // Ref-count.
+	self chunkLoc // The self is the chunkLoc for this chunk.
+	next chunkLoc // Used when the chunk is in the free-list or when chained.
 }
 
-// A logical address or reference to a chunk of bytes managed by an Arena.
-type Loc struct {
+// A logical address to a chunk managed by an Arena.
+type chunkLoc struct {
 	slabClassIndex int
 	slabIndex      int
 	chunkIndex     int
 	chunkSize      int
 }
 
-func NilLoc() Loc {
-	return nilLoc
-}
+var nilChunkLoc = chunkLoc{-1, -1, -1, -1} // A sentinel.
 
-var nilLoc = Loc{-1, -1, -1, -1} // A sentinel.
-
-func (cl *Loc) IsNil() bool {
+func (cl *chunkLoc) IsNil() bool {
 	return cl.slabClassIndex == -1 && cl.slabIndex == -1 &&
 		cl.chunkIndex == -1 && cl.chunkSize == -1
 }
@@ -125,9 +137,13 @@ func (s *Arena) Alloc(bufSize int) (buf []byte) {
 func (s *Arena) AllocLoc(bufSize int) Loc {
 	sc, chunk := s.allocChunk(bufSize)
 	if sc == nil || chunk == nil {
-		return nilLoc
+		return NilLoc()
 	}
-	return chunk.self
+
+	var loc Loc
+	loc.chunkLoc = chunk.self
+	loc.bufSize = bufSize
+	return loc
 }
 
 func (s *Arena) allocChunk(bufSize int) (*slabClass, *chunk) {
@@ -226,7 +242,7 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 	if scOldNext != nil && cOldNext != nil {
 		s.decRef(scOldNext, cOldNext)
 	}
-	c.next = nilLoc
+	c.next = nilChunkLoc
 	if bufNext != nil {
 		scNewNext, cNewNext := s.bufChunk(bufNext)
 		if scNewNext == nil || cNewNext == nil {
@@ -253,7 +269,7 @@ func (s *Arena) findSlabClassIndex(bufSize int) int {
 func (s *Arena) addSlabClass(chunkSize int) {
 	s.slabClasses = append(s.slabClasses, slabClass{
 		chunkSize: chunkSize,
-		chunkFree: nilLoc,
+		chunkFree: nilChunkLoc,
 	})
 }
 
@@ -312,7 +328,7 @@ func (sc *slabClass) popFreeChunk() *chunk {
 	}
 	c.refs = 1
 	sc.chunkFree = c.next
-	c.next = nilLoc
+	c.next = nilChunkLoc
 	sc.numChunksFree--
 	if sc.numChunksFree < 0 {
 		panic("popFreeChunk() got < 0 numChunksFree")
@@ -328,7 +344,7 @@ func (sc *slabClass) chunkMem(c *chunk) []byte {
 	return sc.slabs[c.self.slabIndex].memory[beg : beg+sc.chunkSize]
 }
 
-func (sc *slabClass) chunk(cl Loc) *chunk {
+func (sc *slabClass) chunk(cl chunkLoc) *chunk {
 	if cl.IsNil() {
 		return nil
 	}
@@ -342,7 +358,7 @@ func (s *Arena) chunkMem(c *chunk) []byte {
 	return s.slabClasses[c.self.slabClassIndex].chunkMem(c)
 }
 
-func (s *Arena) chunk(cl Loc) (*slabClass, *chunk) {
+func (s *Arena) chunk(cl chunkLoc) (*slabClass, *chunk) {
 	if cl.IsNil() {
 		return nil, nil
 	}
@@ -388,7 +404,7 @@ func (s *Arena) decRef(sc *slabClass, c *chunk) bool {
 		if scNext != nil && cNext != nil {
 			s.decRef(scNext, cNext)
 		}
-		c.next = nilLoc
+		c.next = nilChunkLoc
 		sc.pushFreeChunk(c)
 		return true
 	}
