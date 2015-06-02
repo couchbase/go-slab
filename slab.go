@@ -81,6 +81,17 @@ type chunk struct {
 	next chunkLoc // Used when the chunk is in the free-list or when chained.
 }
 
+func (c *chunk) getLoc(bufSize int) Loc {
+	if bufSize > c.self.chunkSize {
+		return NilLoc()
+	}
+
+	var loc Loc
+	loc.chunkLoc = c.self
+	loc.bufSize = bufSize
+	return loc
+}
+
 // A logical address to a chunk managed by an Arena.
 type chunkLoc struct {
 	slabClassIndex int
@@ -134,43 +145,10 @@ func (s *Arena) Alloc(bufSize int) (buf []byte) {
 	return sc.chunkMem(chunk)[0:bufSize]
 }
 
-func (s *Arena) AllocLoc(bufSize int) Loc {
-	sc, chunk := s.allocChunk(bufSize)
-	if sc == nil || chunk == nil {
-		return NilLoc()
-	}
-
-	var loc Loc
-	loc.chunkLoc = chunk.self
-	loc.bufSize = bufSize
-	return loc
-}
-
-func (s *Arena) allocChunk(bufSize int) (*slabClass, *chunk) {
-	s.totAllocs++
-
-	if bufSize > s.slabSize {
-		s.totTooBigErrs++
-		return nil, nil
-	}
-
-	slabClassIndex := s.findSlabClassIndex(bufSize)
-
-	sc := &(s.slabClasses[slabClassIndex])
-	if sc.chunkFree.IsNil() {
-		if !s.addSlab(slabClassIndex, s.slabSize, s.slabMagic) {
-			s.totAddSlabErrs++
-			return nil, nil
-		}
-	}
-
-	chunk := sc.popFreeChunk()
-	if chunk == nil {
-		s.totPopFreeChunkErrs++
-		return nil, nil
-	}
-
-	return sc, chunk
+// Owns returns true if this Arena owns the buf.
+func (s *Arena) Owns(buf []byte) bool {
+	sc, c := s.bufChunk(buf)
+	return sc != nil && c != nil
 }
 
 // AddRef increase the ref count on a buf.  The input buf must be from
@@ -195,12 +173,6 @@ func (s *Arena) DecRef(buf []byte) bool {
 		panic("buf not from this arena")
 	}
 	return s.decRef(sc, c)
-}
-
-// Owns returns true if this Arena owns the buf.
-func (s *Arena) Owns(buf []byte) bool {
-	sc, c := s.bufChunk(buf)
-	return sc != nil && c != nil
 }
 
 // GetNext returns the next chained buf for the given input buf.  The
@@ -252,6 +224,54 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 		c.next = cNewNext.self
 		c.next.chunkSize = len(bufNext)
 	}
+}
+
+// Returns a Loc that represents an Arena-managed buf.  Does not
+// affect the reference count of the buf.
+func (s *Arena) BufToLoc(buf []byte, bufSize int) Loc {
+	sc, c := s.bufChunk(buf)
+	if sc == nil || c == nil {
+		return NilLoc()
+	}
+	return c.getLoc(bufSize)
+}
+
+// Return a buf for an Arena-managed Loc.  Does not affect the
+// reference count of the buf.
+func (s *Arena) LocToBuf(loc Loc) []byte {
+	sc, chunk := s.chunk(loc.chunkLoc)
+	if sc == nil || chunk == nil {
+		return nil
+	}
+	return sc.chunkMem(chunk)[0:loc.bufSize]
+}
+
+// ---------------------------------------------------------------
+
+func (s *Arena) allocChunk(bufSize int) (*slabClass, *chunk) {
+	s.totAllocs++
+
+	if bufSize > s.slabSize {
+		s.totTooBigErrs++
+		return nil, nil
+	}
+
+	slabClassIndex := s.findSlabClassIndex(bufSize)
+	sc := &(s.slabClasses[slabClassIndex])
+	if sc.chunkFree.IsNil() {
+		if !s.addSlab(slabClassIndex, s.slabSize, s.slabMagic) {
+			s.totAddSlabErrs++
+			return nil, nil
+		}
+	}
+
+	chunk := sc.popFreeChunk()
+	if chunk == nil {
+		s.totPopFreeChunkErrs++
+		return nil, nil
+	}
+
+	return sc, chunk
 }
 
 func (s *Arena) findSlabClassIndex(bufSize int) int {
