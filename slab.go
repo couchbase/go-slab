@@ -28,15 +28,16 @@ type Arena struct {
 	slabSize     int
 	malloc       func(size int) []byte // App-specific allocator; may be nil.
 
-	numAllocs         int64
-	numAddRefs        int64
-	numDecRefs        int64
-	numGetNexts       int64
-	numSetNexts       int64
-	numMallocs        int64
-	numMallocErrs     int64
-	numTooBigErrs     int64
-	numNoChunkMemErrs int64
+	numAllocs           int64
+	numAddRefs          int64
+	numDecRefs          int64
+	numGetNexts         int64
+	numSetNexts         int64
+	numMallocs          int64
+	numMallocErrs       int64
+	numTooBigErrs       int64
+	numAddSlabErrs      int64
+	numPopFreeChunkErrs int64
 }
 
 type slabClass struct {
@@ -131,15 +132,28 @@ func (s *Arena) AllocLoc(bufSize int) Loc {
 
 func (s *Arena) allocChunk(bufSize int) (*slabClass, *chunk) {
 	s.numAllocs++
+
 	if bufSize > s.slabSize {
 		s.numTooBigErrs++
 		return nil, nil
 	}
-	sc, chunk := s.assignChunk(s.findSlabClassIndex(bufSize))
-	if sc == nil || chunk == nil {
-		s.numNoChunkMemErrs++
+
+	slabClassIndex := s.findSlabClassIndex(bufSize)
+
+	sc := &(s.slabClasses[slabClassIndex])
+	if sc.chunkFree.IsNil() {
+		if !s.addSlab(slabClassIndex, s.slabSize, s.slabMagic) {
+			s.numAddSlabErrs++
+			return nil, nil
+		}
+	}
+
+	chunk := sc.popFreeChunk()
+	if chunk == nil {
+		s.numPopFreeChunkErrs++
 		return nil, nil
 	}
+
 	return sc, chunk
 }
 
@@ -241,16 +255,6 @@ func (s *Arena) addSlabClass(chunkSize int) {
 		chunkSize: chunkSize,
 		chunkFree: nilLoc,
 	})
-}
-
-func (s *Arena) assignChunk(slabClassIndex int) (*slabClass, *chunk) {
-	sc := &(s.slabClasses[slabClassIndex])
-	if sc.chunkFree.IsNil() {
-		if !s.addSlab(slabClassIndex, s.slabSize, s.slabMagic) {
-			return nil, nil
-		}
-	}
-	return sc, sc.popFreeChunk()
 }
 
 func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
@@ -402,7 +406,8 @@ func (s *Arena) Stats(m map[string]int64) map[string]int64 {
 	m["numMallocs"] = s.numMallocs
 	m["numMallocErrs"] = s.numMallocErrs
 	m["numTooBigErrs"] = s.numTooBigErrs
-	m["numNoChunkMemErrs"] = s.numNoChunkMemErrs
+	m["numAddSlabErrs"] = s.numAddSlabErrs
+	m["numPopFreeChunkErrs"] = s.numPopFreeChunkErrs
 	for i, sc := range s.slabClasses {
 		prefix := fmt.Sprintf("slabClass-%06d-", i)
 		m[prefix+"numSlabs"] = int64(len(sc.slabs))
