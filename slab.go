@@ -40,9 +40,9 @@ type Arena struct {
 }
 
 type slabClass struct {
-	slabs     []*slab  // A growing array of slabs.
-	chunkSize int      // Each slab is sliced into fixed-sized chunks.
-	chunkFree chunkLoc // Chunks are tracked in a free-list per slabClass.
+	slabs     []*slab // A growing array of slabs.
+	chunkSize int     // Each slab is sliced into fixed-sized chunks.
+	chunkFree Loc     // Chunks are tracked in a free-list per slabClass.
 
 	numChunks     int64
 	numChunksFree int64
@@ -59,21 +59,26 @@ type slab struct {
 const slabMemoryFooterLen int = 4 + 4 + 4 // slabClassIndex + slabIndex + slabMagic.
 
 type chunk struct {
-	refs int32    // Ref-count.
-	self chunkLoc // The self is the chunkLoc for this chunk.
-	next chunkLoc // Used when the chunk is in the free-list or when chained.
+	refs int32 // Ref-count.
+	self Loc   // The self is the Loc for this chunk.
+	next Loc   // Used when the chunk is in the free-list or when chained.
 }
 
-type chunkLoc struct {
+// A logical address or reference to a chunk of bytes managed by an Arena.
+type Loc struct {
 	slabClassIndex int
 	slabIndex      int
 	chunkIndex     int
 	chunkSize      int
 }
 
-var emptyChunkLoc = chunkLoc{-1, -1, -1, -1} // A sentinel.
+func NilLoc() Loc {
+	return nilLoc
+}
 
-func (cl *chunkLoc) isEmpty() bool {
+var nilLoc = Loc{-1, -1, -1, -1} // A sentinel.
+
+func (cl *Loc) IsNil() bool {
 	return cl.slabClassIndex == -1 && cl.slabIndex == -1 &&
 		cl.chunkIndex == -1 && cl.chunkSize == -1
 }
@@ -109,17 +114,33 @@ func defaultMalloc(size int) []byte {
 // malloc() returns nil).  The returned buf may not be append()'ed to
 // or re-sliced to be larger.
 func (s *Arena) Alloc(bufSize int) (buf []byte) {
+	sc, chunk := s.allocChunk(bufSize)
+	if sc == nil || chunk == nil {
+		return nil
+	}
+	return sc.chunkMem(chunk)[0:bufSize]
+}
+
+func (s *Arena) AllocLoc(bufSize int) Loc {
+	sc, chunk := s.allocChunk(bufSize)
+	if sc == nil || chunk == nil {
+		return nilLoc
+	}
+	return chunk.self
+}
+
+func (s *Arena) allocChunk(bufSize int) (*slabClass, *chunk) {
 	s.numAllocs++
 	if bufSize > s.slabSize {
 		s.numTooBigErrs++
-		return nil
+		return nil, nil
 	}
-	chunkMem := s.assignChunkMem(s.findSlabClassIndex(bufSize))
-	if chunkMem == nil {
+	sc, chunk := s.assignChunk(s.findSlabClassIndex(bufSize))
+	if sc == nil || chunk == nil {
 		s.numNoChunkMemErrs++
-		return nil
+		return nil, nil
 	}
-	return chunkMem[0:bufSize]
+	return sc, chunk
 }
 
 // AddRef increase the ref count on a buf.  The input buf must be from
@@ -191,7 +212,7 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 	if scOldNext != nil && cOldNext != nil {
 		s.decRef(scOldNext, cOldNext)
 	}
-	c.next = emptyChunkLoc
+	c.next = nilLoc
 	if bufNext != nil {
 		scNewNext, cNewNext := s.bufContainer(bufNext)
 		if scNewNext == nil || cNewNext == nil {
@@ -218,18 +239,18 @@ func (s *Arena) findSlabClassIndex(bufSize int) int {
 func (s *Arena) addSlabClass(chunkSize int) {
 	s.slabClasses = append(s.slabClasses, slabClass{
 		chunkSize: chunkSize,
-		chunkFree: emptyChunkLoc,
+		chunkFree: nilLoc,
 	})
 }
 
-func (s *Arena) assignChunkMem(slabClassIndex int) (chunkMem []byte) {
+func (s *Arena) assignChunk(slabClassIndex int) (*slabClass, *chunk) {
 	sc := &(s.slabClasses[slabClassIndex])
-	if sc.chunkFree.isEmpty() {
+	if sc.chunkFree.IsNil() {
 		if !s.addSlab(slabClassIndex, s.slabSize, s.slabMagic) {
-			return nil
+			return nil, nil
 		}
 	}
-	return sc.chunkMem(sc.popFreeChunk())
+	return sc, sc.popFreeChunk()
 }
 
 func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
@@ -278,8 +299,8 @@ func (sc *slabClass) pushFreeChunk(c *chunk) {
 }
 
 func (sc *slabClass) popFreeChunk() *chunk {
-	if sc.chunkFree.isEmpty() {
-		panic("popFreeChunk() when chunkFree is empty")
+	if sc.chunkFree.IsNil() {
+		panic("popFreeChunk() when chunkFree is nil")
 	}
 	c := sc.chunk(sc.chunkFree)
 	if c.refs != 0 {
@@ -287,7 +308,7 @@ func (sc *slabClass) popFreeChunk() *chunk {
 	}
 	c.refs = 1
 	sc.chunkFree = c.next
-	c.next = emptyChunkLoc
+	c.next = nilLoc
 	sc.numChunksFree--
 	if sc.numChunksFree < 0 {
 		panic("popFreeChunk() got < 0 numChunksFree")
@@ -296,29 +317,29 @@ func (sc *slabClass) popFreeChunk() *chunk {
 }
 
 func (sc *slabClass) chunkMem(c *chunk) []byte {
-	if c == nil || c.self.isEmpty() {
+	if c == nil || c.self.IsNil() {
 		return nil
 	}
 	beg := sc.chunkSize * c.self.chunkIndex
 	return sc.slabs[c.self.slabIndex].memory[beg : beg+sc.chunkSize]
 }
 
-func (sc *slabClass) chunk(cl chunkLoc) *chunk {
-	if cl.isEmpty() {
+func (sc *slabClass) chunk(cl Loc) *chunk {
+	if cl.IsNil() {
 		return nil
 	}
 	return &(sc.slabs[cl.slabIndex].chunks[cl.chunkIndex])
 }
 
 func (s *Arena) chunkMem(c *chunk) []byte {
-	if c == nil || c.self.isEmpty() {
+	if c == nil || c.self.IsNil() {
 		return nil
 	}
 	return s.slabClasses[c.self.slabClassIndex].chunkMem(c)
 }
 
-func (s *Arena) chunk(cl chunkLoc) (*slabClass, *chunk) {
-	if cl.isEmpty() {
+func (s *Arena) chunk(cl Loc) (*slabClass, *chunk) {
+	if cl.IsNil() {
 		return nil, nil
 	}
 	sc := &(s.slabClasses[cl.slabClassIndex])
@@ -363,7 +384,7 @@ func (s *Arena) decRef(sc *slabClass, c *chunk) bool {
 		if scNext != nil && cNext != nil {
 			s.decRef(scNext, cNext)
 		}
-		c.next = emptyChunkLoc
+		c.next = nilLoc
 		sc.pushFreeChunk(c)
 		return true
 	}

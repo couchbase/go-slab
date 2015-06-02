@@ -100,24 +100,24 @@ func TestDecRef(t *testing.T) {
 
 func TestAddRef(t *testing.T) {
 	s := NewArena(1, 1, 2, nil)
-	if !s.slabClasses[0].chunkFree.isEmpty() {
+	if !s.slabClasses[0].chunkFree.IsNil() {
 		t.Errorf("expected no free chunks")
 	}
 	a := s.Alloc(1)
 	a[0] = 123
-	if !s.slabClasses[0].chunkFree.isEmpty() {
+	if !s.slabClasses[0].chunkFree.IsNil() {
 		t.Errorf("expected no free chunks")
 	}
 	s.AddRef(a)
-	if !s.slabClasses[0].chunkFree.isEmpty() {
+	if !s.slabClasses[0].chunkFree.IsNil() {
 		t.Errorf("expected no free chunks")
 	}
 	s.DecRef(a)
-	if !s.slabClasses[0].chunkFree.isEmpty() {
+	if !s.slabClasses[0].chunkFree.IsNil() {
 		t.Errorf("expected no free chunks")
 	}
 	s.DecRef(a)
-	if s.slabClasses[0].chunkFree.isEmpty() {
+	if s.slabClasses[0].chunkFree.IsNil() {
 		t.Errorf("expected 1 free chunk")
 	}
 	b := s.Alloc(1)
@@ -136,10 +136,10 @@ func TestLargeAlloc(t *testing.T) {
 func TestEmptyChunk(t *testing.T) {
 	s := NewArena(1, 1, 2, nil)
 	sc := s.slabClasses[0]
-	if sc.chunk(emptyChunkLoc) != nil {
+	if sc.chunk(nilLoc) != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
-	sc1, c1 := s.chunk(emptyChunkLoc)
+	sc1, c1 := s.chunk(nilLoc)
 	if sc1 != nil || c1 != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
@@ -151,13 +151,13 @@ func TestEmptyChunkMem(t *testing.T) {
 	if sc.chunkMem(nil) != nil {
 		t.Errorf("expected nil chunk to not have a chunk()")
 	}
-	if sc.chunkMem(&chunk{self: emptyChunkLoc}) != nil {
+	if sc.chunkMem(&chunk{self: nilLoc}) != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
 	if s.chunkMem(nil) != nil {
 		t.Errorf("expected nil chunk to not have a chunk()")
 	}
-	if s.chunkMem(&chunk{self: emptyChunkLoc}) != nil {
+	if s.chunkMem(&chunk{self: nilLoc}) != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
 }
@@ -206,7 +206,7 @@ func TestPushFreeChunkOnReferencedChunk(t *testing.T) {
 func TestPopFreeChunkOnFreeChunk(t *testing.T) {
 	s := NewArena(1, 1, 2, nil)
 	sc := s.slabClasses[0]
-	sc.chunkFree = emptyChunkLoc
+	sc.chunkFree = nilLoc
 	var err interface{}
 	func() {
 		defer func() { err = recover() }()
@@ -457,10 +457,10 @@ func testChaining(t *testing.T, s *Arena) {
 	if b1chunk.refs != 1 {
 		t.Errorf("expected b1chunk to still be ref'ed")
 	}
-	if b0chunk.next.isEmpty() {
+	if b0chunk.next.IsNil() {
 		t.Errorf("expected b0chunk to not be empty")
 	}
-	if !b1chunk.next.isEmpty() {
+	if !b1chunk.next.IsNil() {
 		t.Errorf("expected b1chunk to have no next")
 	}
 	s.DecRef(b0)
