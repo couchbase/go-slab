@@ -9,7 +9,7 @@
 //  express or implied. See the License for the specific language
 //  governing permissions and limitations under the License.
 
-// Package slab provides a slab allocator for golang.
+// Package slab provides a 100% golang slab allocator for byte slices.
 package slab
 
 import (
@@ -49,8 +49,11 @@ type slabClass struct {
 }
 
 type slab struct {
-	memory []byte  // len(memory) == slabSize + slabMemoryFooterLen.
-	chunks []chunk // Parallel array of chunk metadata.
+	// len(memory) == slabSize + slabMemoryFooterLen.
+	memory []byte
+
+	// Matching array of chunk metadata (len(memory) == len(chunks)).
+	chunks []chunk
 }
 
 const slabMemoryFooterLen int = 4 + 4 + 4 // slabClassIndex + slabIndex + slabMagic.
