@@ -28,16 +28,16 @@ type Arena struct {
 	slabSize     int
 	malloc       func(size int) []byte // App-specific allocator; may be nil.
 
-	numAllocs           int64
-	numAddRefs          int64
-	numDecRefs          int64
-	numGetNexts         int64
-	numSetNexts         int64
-	numMallocs          int64
-	numMallocErrs       int64
-	numTooBigErrs       int64
-	numAddSlabErrs      int64
-	numPopFreeChunkErrs int64
+	totAllocs           int64
+	totAddRefs          int64
+	totDecRefs          int64
+	totGetNexts         int64
+	totSetNexts         int64
+	totMallocs          int64
+	totMallocErrs       int64
+	totTooBigErrs       int64
+	totAddSlabErrs      int64
+	totPopFreeChunkErrs int64
 }
 
 type slabClass struct {
@@ -131,10 +131,10 @@ func (s *Arena) AllocLoc(bufSize int) Loc {
 }
 
 func (s *Arena) allocChunk(bufSize int) (*slabClass, *chunk) {
-	s.numAllocs++
+	s.totAllocs++
 
 	if bufSize > s.slabSize {
-		s.numTooBigErrs++
+		s.totTooBigErrs++
 		return nil, nil
 	}
 
@@ -143,14 +143,14 @@ func (s *Arena) allocChunk(bufSize int) (*slabClass, *chunk) {
 	sc := &(s.slabClasses[slabClassIndex])
 	if sc.chunkFree.IsNil() {
 		if !s.addSlab(slabClassIndex, s.slabSize, s.slabMagic) {
-			s.numAddSlabErrs++
+			s.totAddSlabErrs++
 			return nil, nil
 		}
 	}
 
 	chunk := sc.popFreeChunk()
 	if chunk == nil {
-		s.numPopFreeChunkErrs++
+		s.totPopFreeChunkErrs++
 		return nil, nil
 	}
 
@@ -160,8 +160,8 @@ func (s *Arena) allocChunk(bufSize int) (*slabClass, *chunk) {
 // AddRef increase the ref count on a buf.  The input buf must be from
 // an Alloc() from the same Arena.
 func (s *Arena) AddRef(buf []byte) {
-	s.numAddRefs++
-	sc, c := s.bufContainer(buf)
+	s.totAddRefs++
+	sc, c := s.bufChunk(buf)
 	if sc == nil || c == nil {
 		panic("buf not from this arena")
 	}
@@ -173,8 +173,8 @@ func (s *Arena) AddRef(buf []byte) {
 // drops to 0, the Arena may reuse the buf.  Returns true if this was
 // the last DecRef() invocation (ref count reached 0).
 func (s *Arena) DecRef(buf []byte) bool {
-	s.numDecRefs++
-	sc, c := s.bufContainer(buf)
+	s.totDecRefs++
+	sc, c := s.bufChunk(buf)
 	if sc == nil || c == nil {
 		panic("buf not from this arena")
 	}
@@ -183,7 +183,7 @@ func (s *Arena) DecRef(buf []byte) bool {
 
 // Owns returns true if this Arena owns the buf.
 func (s *Arena) Owns(buf []byte) bool {
-	sc, c := s.bufContainer(buf)
+	sc, c := s.bufChunk(buf)
 	return sc != nil && c != nil
 }
 
@@ -193,8 +193,8 @@ func (s *Arena) Owns(buf []byte) bool {
 // ref-count on bufNext and must invoke DecRef(bufNext) when the
 // caller is finished using bufNext.
 func (s *Arena) GetNext(buf []byte) (bufNext []byte) {
-	s.numGetNexts++
-	sc, c := s.bufContainer(buf)
+	s.totGetNexts++
+	sc, c := s.bufChunk(buf)
 	if sc == nil || c == nil {
 		panic("buf not from this arena")
 	}
@@ -214,8 +214,8 @@ func (s *Arena) GetNext(buf []byte) (bufNext []byte) {
 // own an AddRef() on bufNext.  When buf's ref-count goes to zero, it
 // will call DecRef() on bufNext.  The bufNext may be nil.
 func (s *Arena) SetNext(buf, bufNext []byte) {
-	s.numSetNexts++
-	sc, c := s.bufContainer(buf)
+	s.totSetNexts++
+	sc, c := s.bufChunk(buf)
 	if sc == nil || c == nil {
 		panic("buf not from this arena")
 	}
@@ -228,7 +228,7 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 	}
 	c.next = nilLoc
 	if bufNext != nil {
-		scNewNext, cNewNext := s.bufContainer(bufNext)
+		scNewNext, cNewNext := s.bufChunk(bufNext)
 		if scNewNext == nil || cNewNext == nil {
 			panic("bufNext not from this arena")
 		}
@@ -266,10 +266,10 @@ func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
 	slabIndex := len(sc.slabs)
 	// Re-multiplying to avoid any extra fractional chunk memory.
 	memorySize := (sc.chunkSize * chunksPerSlab) + slabMemoryFooterLen
-	s.numMallocs++
+	s.totMallocs++
 	memory := s.malloc(memorySize)
 	if memory == nil {
-		s.numMallocErrs++
+		s.totMallocErrs++
 		return false
 	}
 	slab := &slab{
@@ -350,8 +350,8 @@ func (s *Arena) chunk(cl Loc) (*slabClass, *chunk) {
 	return sc, sc.chunk(cl)
 }
 
-// Determine the slabClass & chunk for a buf []byte.
-func (s *Arena) bufContainer(buf []byte) (*slabClass, *chunk) {
+// Determine the slabClass & chunk for an Arena managed buf []byte.
+func (s *Arena) bufChunk(buf []byte) (*slabClass, *chunk) {
 	if buf == nil || cap(buf) <= slabMemoryFooterLen {
 		return nil, nil
 	}
@@ -397,17 +397,17 @@ func (s *Arena) decRef(sc *slabClass, c *chunk) bool {
 
 // Stats fills an input map with runtime metrics about the Arena.
 func (s *Arena) Stats(m map[string]int64) map[string]int64 {
-	m["numSlabClasses"] = int64(len(s.slabClasses))
-	m["numAllocs"] = s.numAllocs
-	m["numAddRefs"] = s.numAddRefs
-	m["numDecRefs"] = s.numDecRefs
-	m["numGetNexts"] = s.numGetNexts
-	m["numSetNexts"] = s.numSetNexts
-	m["numMallocs"] = s.numMallocs
-	m["numMallocErrs"] = s.numMallocErrs
-	m["numTooBigErrs"] = s.numTooBigErrs
-	m["numAddSlabErrs"] = s.numAddSlabErrs
-	m["numPopFreeChunkErrs"] = s.numPopFreeChunkErrs
+	m["totSlabClasses"] = int64(len(s.slabClasses))
+	m["totAllocs"] = s.totAllocs
+	m["totAddRefs"] = s.totAddRefs
+	m["totDecRefs"] = s.totDecRefs
+	m["totGetNexts"] = s.totGetNexts
+	m["totSetNexts"] = s.totSetNexts
+	m["totMallocs"] = s.totMallocs
+	m["totMallocErrs"] = s.totMallocErrs
+	m["totTooBigErrs"] = s.totTooBigErrs
+	m["totAddSlabErrs"] = s.totAddSlabErrs
+	m["totPopFreeChunkErrs"] = s.totPopFreeChunkErrs
 	for i, sc := range s.slabClasses {
 		prefix := fmt.Sprintf("slabClass-%06d-", i)
 		m[prefix+"numSlabs"] = int64(len(sc.slabs))

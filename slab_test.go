@@ -446,11 +446,11 @@ func testChaining(t *testing.T, s *Arena) {
 		t.Errorf("expected chain to still work")
 	}
 	s.DecRef(bx)
-	_, b0chunk := s.bufContainer(b0)
+	_, b0chunk := s.bufChunk(b0)
 	if b0chunk.refs != 1 {
 		t.Errorf("expected b0chunk to still be alive")
 	}
-	_, b1chunk := s.bufContainer(b1)
+	_, b1chunk := s.bufChunk(b1)
 	if b1chunk == nil {
 		t.Errorf("expected b1chunk to still be alive")
 	}
@@ -473,8 +473,8 @@ func testChaining(t *testing.T, s *Arena) {
 	alice := s.Alloc(1)
 	bob := s.Alloc(1)
 	betty := s.Alloc(1)
-	_, bobChunk := s.bufContainer(bob)
-	_, bettyChunk := s.bufContainer(betty)
+	_, bobChunk := s.bufChunk(bob)
+	_, bettyChunk := s.bufChunk(betty)
 	s.SetNext(alice, bob)
 	if bobChunk.refs != 2 {
 		t.Errorf("expected bob to have 2 refs")
@@ -643,7 +643,7 @@ func TestStats(t *testing.T) {
 	if len(stats) == 0 {
 		t.Errorf("expected some stats")
 	}
-	if stats["numAllocs"] != 3 || stats["numDecRefs"] != 1 {
+	if stats["totAllocs"] != 3 || stats["totDecRefs"] != 1 {
 		t.Errorf("expected stats did not match")
 	}
 	if stats["slabClass-000002-numChunksInUse"] != 1 ||
