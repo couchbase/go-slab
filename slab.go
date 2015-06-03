@@ -27,7 +27,7 @@ type Loc struct {
 	slabClassIndex int
 	slabIndex      int
 	chunkIndex     int
-	chunkSize      int
+	bufSize        int
 }
 
 func NilLoc() Loc {
@@ -38,7 +38,7 @@ var nilLoc = Loc{-1, -1, -1, -1} // A sentinel.
 
 func (cl *Loc) IsNil() bool {
 	return cl.slabClassIndex < 0 && cl.slabIndex < 0 &&
-		cl.chunkIndex < 0 && cl.chunkSize < 0
+		cl.chunkIndex < 0 && cl.bufSize < 0
 }
 
 // An Arena manages a set of slab classes and memory.
@@ -88,7 +88,7 @@ type chunk struct {
 
 func (c *chunk) getLoc(size int) Loc {
 	var loc = c.self // Makes a copy.
-	loc.chunkSize = size
+	loc.bufSize = size
 	return loc
 }
 
@@ -182,7 +182,7 @@ func (s *Arena) GetNext(buf []byte) (bufNext []byte) {
 
 	cNext.addRef()
 
-	return scNext.chunkMem(cNext)[0:c.next.chunkSize]
+	return scNext.chunkMem(cNext)[0:c.next.bufSize]
 }
 
 // SetNext associates the next chain buf following the input buf to be
@@ -213,7 +213,7 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 		cNewNext.addRef()
 
 		c.next = cNewNext.self
-		c.next.chunkSize = len(bufNext)
+		c.next.bufSize = len(bufNext)
 	}
 }
 
@@ -234,7 +234,7 @@ func (s *Arena) LocToBuf(loc Loc) []byte {
 	if sc == nil || chunk == nil {
 		return nil
 	}
-	return sc.chunkMem(chunk)[0:loc.chunkSize]
+	return sc.chunkMem(chunk)[0:loc.bufSize]
 }
 
 // ---------------------------------------------------------------
@@ -320,7 +320,7 @@ func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
 		c.self.slabClassIndex = slabClassIndex
 		c.self.slabIndex = slabIndex
 		c.self.chunkIndex = i
-		c.self.chunkSize = sc.chunkSize
+		c.self.bufSize = sc.chunkSize
 		sc.pushFreeChunk(c)
 	}
 	sc.numChunks += int64(len(slab.chunks))
