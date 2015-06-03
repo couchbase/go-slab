@@ -198,7 +198,7 @@ func (s *Arena) GetNext(buf []byte) (bufNext []byte) {
 
 	cNext.addRef()
 
-	return s.chunkMem(cNext)[0:c.next.chunkSize]
+	return scNext.chunkMem(cNext)[0:c.next.chunkSize]
 }
 
 // SetNext associates the next chain buf following the input buf to be
@@ -384,13 +384,6 @@ func (sc *slabClass) chunk(cl chunkLoc) *chunk {
 		return nil
 	}
 	return &(sc.slabs[cl.slabIndex].chunks[cl.chunkIndex])
-}
-
-func (s *Arena) chunkMem(c *chunk) []byte {
-	if c == nil || c.self.IsNil() {
-		return nil
-	}
-	return s.slabClasses[c.self.slabClassIndex].chunkMem(c)
 }
 
 func (s *Arena) chunk(cl chunkLoc) (*slabClass, *chunk) {

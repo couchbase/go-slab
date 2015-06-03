@@ -154,12 +154,6 @@ func TestEmptyChunkMem(t *testing.T) {
 	if sc.chunkMem(&chunk{self: nilChunkLoc}) != nil {
 		t.Errorf("expected empty chunk to not have a chunk()")
 	}
-	if s.chunkMem(nil) != nil {
-		t.Errorf("expected nil chunk to not have a chunk()")
-	}
-	if s.chunkMem(&chunk{self: nilChunkLoc}) != nil {
-		t.Errorf("expected empty chunk to not have a chunk()")
-	}
 }
 
 func TestAddRefOnAlreadyReleasedBuf(t *testing.T) {
@@ -288,9 +282,6 @@ func TestArenaChunkMem(t *testing.T) {
 	sc := s.slabClasses[0]
 	c := sc.popFreeChunk()
 	if sc.chunkMem(c) == nil {
-		t.Errorf("expected chunkMem to be non-nil")
-	}
-	if s.chunkMem(c) == nil {
 		t.Errorf("expected chunkMem to be non-nil")
 	}
 }
