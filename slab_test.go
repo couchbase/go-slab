@@ -676,7 +676,7 @@ func TestLoc(t *testing.T) {
 
 	a := NewArena(1, 1024*1024, 2, nil)
 
-	loc = a.BufToLoc(nil, 0)
+	loc = a.BufToLoc(nil)
 	if !loc.IsNil() {
 		t.Errorf("expected loc to buf to nil on bad buf")
 	}
@@ -690,7 +690,7 @@ func TestLoc(t *testing.T) {
 	b[1] = 'b'
 	b[2] = 'c'
 
-	loc = a.BufToLoc(b, len(b))
+	loc = a.BufToLoc(b)
 	if loc.IsNil() {
 		t.Errorf("expected non nil loc")
 	}
@@ -706,7 +706,7 @@ func TestLoc(t *testing.T) {
 		t.Errorf("expected b == b2")
 	}
 
-	loc = a.BufToLoc(b, 1)
+	loc = a.BufToLoc(b[0:1])
 	if loc.IsNil() {
 		t.Errorf("expected non nil loc")
 	}
@@ -720,5 +720,15 @@ func TestLoc(t *testing.T) {
 	}
 	if string(b3) != "a" {
 		t.Errorf("expected b3 to be a")
+	}
+
+	b4 := a.LocToBuf(NilLoc())
+	if b4 != nil {
+		t.Errorf("expected nil loc to have nil buf")
+	}
+
+	loc = a.BufToLoc([]byte("hello"))
+	if !loc.IsNil() {
+		t.Errorf("expected loc nil on non-arena buf")
 	}
 }

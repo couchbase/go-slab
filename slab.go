@@ -235,12 +235,12 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 
 // Returns a Loc that represents an Arena-managed buf.  Does not
 // affect the reference count of the buf.
-func (s *Arena) BufToLoc(buf []byte, bufSize int) Loc {
+func (s *Arena) BufToLoc(buf []byte) Loc {
 	sc, c := s.bufChunk(buf)
 	if sc == nil || c == nil {
 		return NilLoc()
 	}
-	return c.getLoc(bufSize)
+	return c.getLoc(len(buf))
 }
 
 // Return a buf for an Arena-managed Loc.  Does not affect the
