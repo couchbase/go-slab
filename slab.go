@@ -21,8 +21,8 @@ import (
 )
 
 // An opaque, logical reference to bytes managed by an Arena.  See
-// Arena.AllocLoc().  A Loc struct is GC friendly, in that a Loc does
-// not have pointer fields that the garbage collector must traverse.
+// Arena.BufToLoc/LocToBuf().  A Loc struct is GC friendly, in that a
+// Loc does not have pointer fields that must be traversed.
 type Loc struct {
 	chunkLoc chunkLoc
 	bufSize  int
@@ -136,7 +136,8 @@ func defaultMalloc(size int) []byte {
 // Alloc may return nil on errors, such as if no more free chunks are
 // available and new slab memory was not allocatable (such as if
 // malloc() returns nil).  The returned buf may not be append()'ed to
-// or re-sliced to be larger.
+// or re-sliced to be larger.  The returned buf must be DecRef()'ed
+// for memory reuse.
 func (s *Arena) Alloc(bufSize int) (buf []byte) {
 	sc, chunk := s.allocChunk(bufSize)
 	if sc == nil || chunk == nil {
@@ -189,11 +190,14 @@ func (s *Arena) GetNext(buf []byte) (bufNext []byte) {
 	if c.refs <= 0 {
 		panic(fmt.Sprintf("unexpected ref-count during GetNext: %#v", c))
 	}
+
 	scNext, cNext := s.chunk(c.next)
 	if scNext == nil || cNext == nil {
 		return nil
 	}
+
 	cNext.addRef()
+
 	return s.chunkMem(cNext)[0:c.next.chunkSize]
 }
 
@@ -210,10 +214,12 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 	if c.refs <= 0 {
 		panic(fmt.Sprintf("unexpected ref-count during SetNext: %#v", c))
 	}
+
 	scOldNext, cOldNext := s.chunk(c.next)
 	if scOldNext != nil && cOldNext != nil {
 		s.decRef(scOldNext, cOldNext)
 	}
+
 	c.next = nilChunkLoc
 	if bufNext != nil {
 		scNewNext, cNewNext := s.bufChunk(bufNext)
@@ -221,6 +227,7 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 			panic("bufNext not from this arena")
 		}
 		cNewNext.addRef()
+
 		c.next = cNewNext.self
 		c.next.chunkSize = len(bufNext)
 	}
@@ -295,28 +302,35 @@ func (s *Arena) addSlabClass(chunkSize int) {
 
 func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
 	sc := &(s.slabClasses[slabClassIndex])
+
 	chunksPerSlab := slabSize / sc.chunkSize
 	if chunksPerSlab <= 0 {
 		chunksPerSlab = 1
 	}
+
 	slabIndex := len(sc.slabs)
+
+	s.totMallocs++
 	// Re-multiplying to avoid any extra fractional chunk memory.
 	memorySize := (sc.chunkSize * chunksPerSlab) + slabMemoryFooterLen
-	s.totMallocs++
 	memory := s.malloc(memorySize)
 	if memory == nil {
 		s.totMallocErrs++
 		return false
 	}
+
 	slab := &slab{
 		memory: memory,
 		chunks: make([]chunk, chunksPerSlab),
 	}
+
 	footer := slab.memory[len(slab.memory)-slabMemoryFooterLen:]
 	binary.BigEndian.PutUint32(footer[0:4], uint32(slabClassIndex))
 	binary.BigEndian.PutUint32(footer[4:8], uint32(slabIndex))
 	binary.BigEndian.PutUint32(footer[8:12], uint32(slabMagic))
+
 	sc.slabs = append(sc.slabs, slab)
+
 	for i := 0; i < len(slab.chunks); i++ {
 		c := &(slab.chunks[i])
 		c.self.slabClassIndex = slabClassIndex
@@ -326,6 +340,7 @@ func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
 		sc.pushFreeChunk(c)
 	}
 	sc.numChunks += int64(len(slab.chunks))
+
 	return true
 }
 
@@ -391,18 +406,22 @@ func (s *Arena) bufChunk(buf []byte) (*slabClass, *chunk) {
 	if buf == nil || cap(buf) <= slabMemoryFooterLen {
 		return nil, nil
 	}
+
 	rest := buf[:cap(buf)]
 	footerDistance := len(rest) - slabMemoryFooterLen
 	footer := rest[footerDistance:]
+
 	slabClassIndex := binary.BigEndian.Uint32(footer[0:4])
 	slabIndex := binary.BigEndian.Uint32(footer[4:8])
 	slabMagic := binary.BigEndian.Uint32(footer[8:12])
 	if slabMagic != uint32(s.slabMagic) {
 		return nil, nil
 	}
+
 	sc := &(s.slabClasses[slabClassIndex])
 	slab := sc.slabs[slabIndex]
 	chunkIndex := len(slab.chunks) - (footerDistance / sc.chunkSize)
+
 	return sc, &(slab.chunks[chunkIndex])
 }
 

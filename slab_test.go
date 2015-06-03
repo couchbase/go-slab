@@ -667,3 +667,58 @@ func TestStats(t *testing.T) {
 		t.Logf("%s = %d", k, stats[k])
 	}
 }
+
+func TestLoc(t *testing.T) {
+	loc := NilLoc()
+	if !loc.IsNil() {
+		t.Errorf("expected nil loc to be nil")
+	}
+
+	a := NewArena(1, 1024*1024, 2, nil)
+
+	loc = a.BufToLoc(nil, 0)
+	if !loc.IsNil() {
+		t.Errorf("expected loc to buf to nil on bad buf")
+	}
+
+	b := a.Alloc(3)
+	if len(b) != 3 {
+		t.Errorf("expected len 3")
+	}
+
+	b[0] = 'a'
+	b[1] = 'b'
+	b[2] = 'c'
+
+	loc = a.BufToLoc(b, len(b))
+	if loc.IsNil() {
+		t.Errorf("expected non nil loc")
+	}
+
+	b2 := a.LocToBuf(loc)
+	if b2 == nil {
+		t.Errorf("expected loc to buf to work")
+	}
+	if len(b2) != len(b) {
+		t.Errorf("expected len(b2) to be len(b)")
+	}
+	if string(b) != string(b2) {
+		t.Errorf("expected b == b2")
+	}
+
+	loc = a.BufToLoc(b, 1)
+	if loc.IsNil() {
+		t.Errorf("expected non nil loc")
+	}
+
+	b3 := a.LocToBuf(loc)
+	if b3 == nil {
+		t.Errorf("expected loc to buf to work")
+	}
+	if len(b3) != 1 {
+		t.Errorf("expected len(b2) to be len(b)")
+	}
+	if string(b3) != "a" {
+		t.Errorf("expected b3 to be a")
+	}
+}
