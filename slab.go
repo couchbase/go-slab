@@ -20,20 +20,25 @@ import (
 	"sort"
 )
 
-// An opaque, logical reference to bytes managed by an Arena.  See
+// An opaque reference to bytes managed by an Arena.  See
 // Arena.BufToLoc/LocToBuf().  A Loc struct is GC friendly, in that a
 // Loc does not have pointer fields that must be traversed.
 type Loc struct {
-	chunkLoc chunkLoc
-	bufSize  int
+	slabClassIndex int
+	slabIndex      int
+	chunkIndex     int
+	chunkSize      int
 }
 
 func NilLoc() Loc {
-	return Loc{chunkLoc: nilChunkLoc, bufSize: 0}
+	return nilLoc
 }
 
-func (loc *Loc) IsNil() bool {
-	return loc.chunkLoc.IsNil()
+var nilLoc = Loc{-1, -1, -1, -1} // A sentinel.
+
+func (cl *Loc) IsNil() bool {
+	return cl.slabClassIndex < 0 && cl.slabIndex < 0 &&
+		cl.chunkIndex < 0 && cl.chunkSize < 0
 }
 
 // An Arena manages a set of slab classes and memory.
@@ -57,9 +62,9 @@ type Arena struct {
 }
 
 type slabClass struct {
-	slabs     []*slab  // A growing array of slabs.
-	chunkSize int      // Each slab is sliced into fixed-sized chunks.
-	chunkFree chunkLoc // Chunks are tracked in a free-list per slabClass.
+	slabs     []*slab // A growing array of slabs.
+	chunkSize int     // Each slab is sliced into fixed-sized chunks.
+	chunkFree Loc     // Chunks are tracked in a free-list per slabClass.
 
 	numChunks     int64
 	numChunksFree int64
@@ -76,35 +81,15 @@ type slab struct {
 const slabMemoryFooterLen int = 4 + 4 + 4 // slabClassIndex + slabIndex + slabMagic.
 
 type chunk struct {
-	refs int32    // Ref-count.
-	self chunkLoc // The self is the chunkLoc for this chunk.
-	next chunkLoc // Used when the chunk is in the free-list or when chained.
+	refs int32 // Ref-count.
+	self Loc   // The self is the Loc for this chunk.
+	next Loc   // Used when the chunk is in the free-list or when chained.
 }
 
-func (c *chunk) getLoc(bufSize int) Loc {
-	if bufSize > c.self.chunkSize {
-		return NilLoc()
-	}
-
-	var loc Loc
-	loc.chunkLoc = c.self
-	loc.bufSize = bufSize
+func (c *chunk) getLoc(size int) Loc {
+	var loc = c.self // Makes a copy.
+	loc.chunkSize = size
 	return loc
-}
-
-// A logical address to a chunk managed by an Arena.
-type chunkLoc struct {
-	slabClassIndex int
-	slabIndex      int
-	chunkIndex     int
-	chunkSize      int
-}
-
-var nilChunkLoc = chunkLoc{-1, -1, -1, -1} // A sentinel.
-
-func (cl *chunkLoc) IsNil() bool {
-	return cl.slabClassIndex == -1 && cl.slabIndex == -1 &&
-		cl.chunkIndex == -1 && cl.chunkSize == -1
 }
 
 // NewArena returns an Arena to manage byte slice memory based on a
@@ -136,8 +121,7 @@ func defaultMalloc(size int) []byte {
 // Alloc may return nil on errors, such as if no more free chunks are
 // available and new slab memory was not allocatable (such as if
 // malloc() returns nil).  The returned buf may not be append()'ed to
-// or re-sliced to be larger.  The returned buf must be DecRef()'ed
-// for memory reuse.
+// for growth.  The returned buf must be DecRef()'ed for memory reuse.
 func (s *Arena) Alloc(bufSize int) (buf []byte) {
 	sc, chunk := s.allocChunk(bufSize)
 	if sc == nil || chunk == nil {
@@ -220,7 +204,7 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 		s.decRef(scOldNext, cOldNext)
 	}
 
-	c.next = nilChunkLoc
+	c.next = nilLoc
 	if bufNext != nil {
 		scNewNext, cNewNext := s.bufChunk(bufNext)
 		if scNewNext == nil || cNewNext == nil {
@@ -246,11 +230,11 @@ func (s *Arena) BufToLoc(buf []byte) Loc {
 // Return a buf for an Arena-managed Loc.  Does not affect the
 // reference count of the buf.
 func (s *Arena) LocToBuf(loc Loc) []byte {
-	sc, chunk := s.chunk(loc.chunkLoc)
+	sc, chunk := s.chunk(loc)
 	if sc == nil || chunk == nil {
 		return nil
 	}
-	return sc.chunkMem(chunk)[0:loc.bufSize]
+	return sc.chunkMem(chunk)[0:loc.chunkSize]
 }
 
 // ---------------------------------------------------------------
@@ -296,7 +280,7 @@ func (s *Arena) findSlabClassIndex(bufSize int) int {
 func (s *Arena) addSlabClass(chunkSize int) {
 	s.slabClasses = append(s.slabClasses, slabClass{
 		chunkSize: chunkSize,
-		chunkFree: nilChunkLoc,
+		chunkFree: nilLoc,
 	})
 }
 
@@ -363,7 +347,7 @@ func (sc *slabClass) popFreeChunk() *chunk {
 	}
 	c.refs = 1
 	sc.chunkFree = c.next
-	c.next = nilChunkLoc
+	c.next = nilLoc
 	sc.numChunksFree--
 	if sc.numChunksFree < 0 {
 		panic("popFreeChunk() got < 0 numChunksFree")
@@ -379,14 +363,14 @@ func (sc *slabClass) chunkMem(c *chunk) []byte {
 	return sc.slabs[c.self.slabIndex].memory[beg : beg+sc.chunkSize]
 }
 
-func (sc *slabClass) chunk(cl chunkLoc) *chunk {
+func (sc *slabClass) chunk(cl Loc) *chunk {
 	if cl.IsNil() {
 		return nil
 	}
 	return &(sc.slabs[cl.slabIndex].chunks[cl.chunkIndex])
 }
 
-func (s *Arena) chunk(cl chunkLoc) (*slabClass, *chunk) {
+func (s *Arena) chunk(cl Loc) (*slabClass, *chunk) {
 	if cl.IsNil() {
 		return nil, nil
 	}
@@ -436,7 +420,7 @@ func (s *Arena) decRef(sc *slabClass, c *chunk) bool {
 		if scNext != nil && cNext != nil {
 			s.decRef(scNext, cNext)
 		}
-		c.next = nilChunkLoc
+		c.next = nilLoc
 		sc.pushFreeChunk(c)
 		return true
 	}
