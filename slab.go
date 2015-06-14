@@ -237,6 +237,24 @@ func (s *Arena) LocToBuf(loc Loc) []byte {
 	return sc.chunkMem(chunk)[0:loc.bufSize]
 }
 
+func (s *Arena) LocAddRef(loc Loc) {
+	s.totAddRefs++
+	sc, chunk := s.chunk(loc)
+	if sc == nil || chunk == nil {
+		return
+	}
+	chunk.addRef()
+}
+
+func (s *Arena) LocDecRef(loc Loc) {
+	s.totDecRefs++
+	sc, chunk := s.chunk(loc)
+	if sc == nil || chunk == nil {
+		return
+	}
+	s.decRef(sc, chunk)
+}
+
 // ---------------------------------------------------------------
 
 func (s *Arena) allocChunk(bufSize int) (*slabClass, *chunk) {
