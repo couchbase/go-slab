@@ -722,4 +722,17 @@ func TestLoc(t *testing.T) {
 	if !loc.IsNil() {
 		t.Errorf("expected loc nil on non-arena buf")
 	}
+
+	loc = a.BufToLoc(b)
+
+	a.LocAddRef(loc)
+	a.LocDecRef(loc)
+
+	bx := a.LocToBuf(loc)
+	if string(bx) != "abc" {
+		t.Errorf("expected loc to be abc, got: %s", bx)
+	}
+
+	a.LocAddRef(NilLoc())
+	a.LocDecRef(NilLoc())
 }
