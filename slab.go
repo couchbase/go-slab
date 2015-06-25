@@ -44,10 +44,10 @@ func (cl *Loc) IsNil() bool {
 // An Arena manages a set of slab classes and memory.
 type Arena struct {
 	growthFactor float64
-	slabClasses  []slabClass // The chunkSizes of slabClasses grows by growthFactor.
-	slabMagic    int32       // Magic number at the end of each slab memory []byte.
+	slabClasses  []slabClass // slabClasses's chunkSizes grow by growthFactor.
+	slabMagic    int32       // Magic # suffix on each slab memory []byte.
 	slabSize     int
-	malloc       func(size int) []byte // App-specific allocator; may be nil.
+	malloc       func(size int) []byte // App-specific allocator.
 
 	totAllocs           int64
 	totAddRefs          int64
@@ -74,16 +74,17 @@ type slab struct {
 	// len(memory) == slabSize + slabMemoryFooterLen.
 	memory []byte
 
-	// Matching array of chunk metadata, where len(memory) == len(chunks).
+	// Matching array of chunk metadata, and len(memory) == len(chunks).
 	chunks []chunk
 }
 
-const slabMemoryFooterLen int = 4 + 4 + 4 // slabClassIndex + slabIndex + slabMagic.
+// Based on slabClassIndex + slabIndex + slabMagic.
+const slabMemoryFooterLen int = 4 + 4 + 4
 
 type chunk struct {
 	refs int32 // Ref-count.
 	self Loc   // The self is the Loc for this chunk.
-	next Loc   // Used when the chunk is in the free-list or when chained.
+	next Loc   // Used when chunk is in the free-list or when chained.
 }
 
 func (c *chunk) getLoc(size int) Loc {
@@ -97,8 +98,8 @@ func (c *chunk) getLoc(size int) Loc {
 //
 // The startChunkSize and slabSize should be > 0.
 // The growthFactor should be > 1.0.
-// The malloc() func is invoked when the Arena needs memory for a new slab.
-// The malloc() may be nil, where the Arena will default to make([]byte, size).
+// The malloc() func is invoked when Arena needs memory for a new slab.
+// When malloc() is nil, then Arena defaults to make([]byte, size).
 func NewArena(startChunkSize int, slabSize int, growthFactor float64,
 	malloc func(size int) []byte) *Arena {
 	if malloc == nil {
@@ -196,7 +197,7 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 		panic("buf not from this arena")
 	}
 	if c.refs <= 0 {
-		panic(fmt.Sprintf("unexpected ref-count during SetNext: %#v", c))
+		panic(fmt.Sprintf("refs <= 0 during SetNext: %#v", c))
 	}
 
 	scOldNext, cOldNext := s.chunk(c.next)
@@ -217,8 +218,8 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 	}
 }
 
-// Returns a Loc that represents an Arena-managed buf.  Does not
-// affect the reference count of the buf.
+// BufToLoc returns a Loc that represents an Arena-managed buf.  Does
+// not affect the reference count of the buf.
 func (s *Arena) BufToLoc(buf []byte) Loc {
 	sc, c := s.bufChunk(buf)
 	if sc == nil || c == nil {
@@ -227,8 +228,8 @@ func (s *Arena) BufToLoc(buf []byte) Loc {
 	return c.getLoc(len(buf))
 }
 
-// Return a buf for an Arena-managed Loc.  Does not affect the
-// reference count of the buf.
+// LocToBuf returns a buf for an Arena-managed Loc.  Does not affect
+// the reference count of the buf.
 func (s *Arena) LocToBuf(loc Loc) []byte {
 	sc, chunk := s.chunk(loc)
 	if sc == nil || chunk == nil {
@@ -302,7 +303,8 @@ func (s *Arena) addSlabClass(chunkSize int) {
 	})
 }
 
-func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
+func (s *Arena) addSlab(
+	slabClassIndex, slabSize int, slabMagic int32) bool {
 	sc := &(s.slabClasses[slabClassIndex])
 
 	chunksPerSlab := slabSize / sc.chunkSize
@@ -348,7 +350,7 @@ func (s *Arena) addSlab(slabClassIndex, slabSize int, slabMagic int32) bool {
 
 func (sc *slabClass) pushFreeChunk(c *chunk) {
 	if c.refs != 0 {
-		panic(fmt.Sprintf("pushFreeChunk() when non-zero refs: %v", c.refs))
+		panic(fmt.Sprintf("pushFreeChunk() non-zero refs: %v", c.refs))
 	}
 	c.next = sc.chunkFree
 	sc.chunkFree = c.self
@@ -361,7 +363,7 @@ func (sc *slabClass) popFreeChunk() *chunk {
 	}
 	c := sc.chunk(sc.chunkFree)
 	if c.refs != 0 {
-		panic(fmt.Sprintf("popFreeChunk() when non-zero refs: %v", c.refs))
+		panic(fmt.Sprintf("popFreeChunk() non-zero refs: %v", c.refs))
 	}
 	c.refs = 1
 	sc.chunkFree = c.next
@@ -423,7 +425,7 @@ func (s *Arena) bufChunk(buf []byte) (*slabClass, *chunk) {
 func (c *chunk) addRef() *chunk {
 	c.refs++
 	if c.refs <= 1 {
-		panic(fmt.Sprintf("unexpected ref-count during addRef: %#v", c))
+		panic(fmt.Sprintf("refs <= 1 during addRef: %#v", c))
 	}
 	return c
 }
@@ -431,7 +433,7 @@ func (c *chunk) addRef() *chunk {
 func (s *Arena) decRef(sc *slabClass, c *chunk) bool {
 	c.refs--
 	if c.refs < 0 {
-		panic(fmt.Sprintf("unexpected ref-count during decRef: %#v", c))
+		panic(fmt.Sprintf("refs < 0 during decRef: %#v", c))
 	}
 	if c.refs == 0 {
 		scNext, cNext := s.chunk(c.next)
