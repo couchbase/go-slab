@@ -52,12 +52,15 @@ type Arena struct {
 	totAllocs           int64
 	totAddRefs          int64
 	totDecRefs          int64
+	totDecRefZeroes     int64 // Inc'ed when a ref-count reaches zero.
 	totGetNexts         int64
 	totSetNexts         int64
 	totMallocs          int64
 	totMallocErrs       int64
 	totTooBigErrs       int64
 	totAddSlabErrs      int64
+	totPushFreeChunks   int64 // Inc'ed when chunk added to free list.
+	totPopFreeChunks    int64 // Inc'ed when chunk removed from free list.
 	totPopFreeChunkErrs int64
 }
 
@@ -275,6 +278,7 @@ func (s *Arena) allocChunk(bufSize int) (*slabClass, *chunk) {
 		}
 	}
 
+	s.totPopFreeChunks++
 	chunk := sc.popFreeChunk()
 	if chunk == nil {
 		s.totPopFreeChunkErrs++
@@ -436,11 +440,13 @@ func (s *Arena) decRef(sc *slabClass, c *chunk) bool {
 		panic(fmt.Sprintf("refs < 0 during decRef: %#v", c))
 	}
 	if c.refs == 0 {
+		s.totDecRefZeroes++
 		scNext, cNext := s.chunk(c.next)
 		if scNext != nil && cNext != nil {
 			s.decRef(scNext, cNext)
 		}
 		c.next = nilLoc
+		s.totPushFreeChunks++
 		sc.pushFreeChunk(c)
 		return true
 	}
@@ -453,12 +459,15 @@ func (s *Arena) Stats(m map[string]int64) map[string]int64 {
 	m["totAllocs"] = s.totAllocs
 	m["totAddRefs"] = s.totAddRefs
 	m["totDecRefs"] = s.totDecRefs
+	m["totDecRefZeroes"] = s.totDecRefZeroes
 	m["totGetNexts"] = s.totGetNexts
 	m["totSetNexts"] = s.totSetNexts
 	m["totMallocs"] = s.totMallocs
 	m["totMallocErrs"] = s.totMallocErrs
 	m["totTooBigErrs"] = s.totTooBigErrs
 	m["totAddSlabErrs"] = s.totAddSlabErrs
+	m["totPushFreeChunks"] = s.totPushFreeChunks
+	m["totPopFreeChunks"] = s.totPopFreeChunks
 	m["totPopFreeChunkErrs"] = s.totPopFreeChunkErrs
 	for i, sc := range s.slabClasses {
 		prefix := fmt.Sprintf("slabClass-%06d-", i)
