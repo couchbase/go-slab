@@ -634,7 +634,20 @@ func TestStats(t *testing.T) {
 	if len(stats) == 0 {
 		t.Errorf("expected some stats")
 	}
-	if stats["totAllocs"] != 3 || stats["totDecRefs"] != 1 {
+	if stats["totSlabClasses"] != 13 ||
+		stats["totAllocs"] != 3 ||
+		stats["totAddRefs"] != 0 ||
+		stats["totDecRefs"] != 1 ||
+		stats["totDecRefZeroes"] != 1 ||
+		stats["totGetNexts"] != 0 ||
+		stats["totSetNexts"] != 0 ||
+		stats["totMallocs"] != 3 ||
+		stats["totMallocErrs"] != 0 ||
+		stats["totTooBigErrs"] != 0 ||
+		stats["totAddSlabErrs"] != 0 ||
+		stats["totPushFreeChunks"] != 1 ||
+		stats["totPopFreeChunks"] != 3 ||
+		stats["totPopFreeChunkErrs"] != 0 {
 		t.Errorf("expected stats did not match")
 	}
 	if stats["slabClass-000002-numChunksInUse"] != 1 ||
