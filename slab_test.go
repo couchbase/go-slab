@@ -628,7 +628,17 @@ func testChainingSizes(t *testing.T, s *Arena) {
 func TestStats(t *testing.T) {
 	a := NewArena(1, 1024*1024, 2, nil)
 	a.Alloc(3)
-	a.DecRef(a.Alloc(17))
+	aa := a.Alloc(17)
+	if len(aa) != 17 {
+		t.Errorf("expected 17")
+	}
+	aaloc := a.BufToLoc(aa)
+	aaloc45 := aaloc.Slice(4, 5)
+	bb := a.LocToBuf(aaloc45)
+	if len(bb) != 5 {
+		t.Errorf("expected 5")
+	}
+	a.DecRef(bb)
 	a.Alloc(4096)
 	stats := a.Stats(map[string]int64{})
 	if len(stats) == 0 {

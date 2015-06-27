@@ -40,7 +40,7 @@ func NilLoc() Loc {
 var nilLoc = Loc{-1, -1, -1, -1, -1} // A sentinel.
 
 // IsNil returns true if the Loc came from NilLoc().
-func (cl *Loc) IsNil() bool {
+func (cl Loc) IsNil() bool {
 	return cl.slabClassIndex < 0 && cl.slabIndex < 0 &&
 		cl.chunkIndex < 0 && cl.bufStart < 0 && cl.bufLen < 0
 }
@@ -52,8 +52,8 @@ func (cl *Loc) IsNil() bool {
 //
 // NOTE: Many API's (such as BufToLoc) do not correctly handle Loc's
 // with non-zero bufStart, so use sliced Loc's with caution.
-func (cl *Loc) Slice(bufStart, bufLen int) Loc {
-	rv := *cl // Makes a copy.
+func (cl Loc) Slice(bufStart, bufLen int) Loc {
+	rv := cl // Makes a copy.
 	rv.bufStart = bufStart
 	rv.bufLen = bufLen
 	return rv
@@ -198,7 +198,7 @@ func (s *Arena) GetNext(buf []byte) (bufNext []byte) {
 
 	cNext.addRef()
 
-	return scNext.chunkMem(cNext)[c.next.bufStart:c.next.bufLen]
+	return scNext.chunkMem(cNext)[c.next.bufStart : c.next.bufStart+c.next.bufLen]
 }
 
 // SetNext associates the next chain buf following the input buf to be
@@ -252,13 +252,14 @@ func (s *Arena) BufToLoc(buf []byte) Loc {
 }
 
 // LocToBuf returns a buf for an Arena-managed Loc.  Does not affect
-// the reference count of the buf.
+// the reference count of the buf.  The Loc may have come from
+// Loc.Slice().
 func (s *Arena) LocToBuf(loc Loc) []byte {
 	sc, chunk := s.chunk(loc)
 	if sc == nil || chunk == nil {
 		return nil
 	}
-	return sc.chunkMem(chunk)[loc.bufStart:loc.bufLen]
+	return sc.chunkMem(chunk)[loc.bufStart : loc.bufStart+loc.bufLen]
 }
 
 func (s *Arena) LocAddRef(loc Loc) {
@@ -442,7 +443,8 @@ func (s *Arena) bufChunk(buf []byte) (*slabClass, *chunk) {
 
 	sc := &(s.slabClasses[slabClassIndex])
 	slab := sc.slabs[slabIndex]
-	chunkIndex := len(slab.chunks) - (footerDistance / sc.chunkSize)
+	chunkIndex := len(slab.chunks) -
+		int(math.Ceil(float64(footerDistance)/float64(sc.chunkSize)))
 
 	return sc, &(slab.chunks[chunkIndex])
 }
