@@ -21,24 +21,42 @@ import (
 )
 
 // An opaque reference to bytes managed by an Arena.  See
-// Arena.BufToLoc/LocToBuf().  A Loc struct is GC friendly, in that a
-// Loc does not have pointer fields that must be traversed.
+// Arena.BufToLoc/LocToBuf().  A Loc struct is GC friendly in that a
+// Loc does not have direct pointer fields into the Arena's memory
+// that the GC's scanner must traverse.
 type Loc struct {
 	slabClassIndex int
 	slabIndex      int
 	chunkIndex     int
+	bufStart       int
 	bufLen         int
 }
 
+// NilLoc returns a Loc where Loc.IsNil() is true.
 func NilLoc() Loc {
 	return nilLoc
 }
 
-var nilLoc = Loc{-1, -1, -1, -1} // A sentinel.
+var nilLoc = Loc{-1, -1, -1, -1, -1} // A sentinel.
 
+// IsNil returns true if the Loc came from NilLoc().
 func (cl *Loc) IsNil() bool {
 	return cl.slabClassIndex < 0 && cl.slabIndex < 0 &&
-		cl.chunkIndex < 0 && cl.bufLen < 0
+		cl.chunkIndex < 0 && cl.bufStart < 0 && cl.bufLen < 0
+}
+
+// Slice returns a Loc that a represents a different slice of the
+// backing buffer, where the bufStart and bufLen are relative to the
+// backing buffer.  Does not change the ref-count of the underlying
+// buffer.
+//
+// NOTE: Many API's (such as BufToLoc) do not correctly handle Loc's
+// with non-zero bufStart, so use sliced Loc's with caution.
+func (cl *Loc) Slice(bufStart, bufLen int) Loc {
+	rv := *cl // Makes a copy.
+	rv.bufStart = bufStart
+	rv.bufLen = bufLen
+	return rv
 }
 
 // An Arena manages a set of slab classes and memory.
@@ -88,12 +106,6 @@ type chunk struct {
 	refs int32 // Ref-count.
 	self Loc   // The self is the Loc for this chunk.
 	next Loc   // Used when chunk is in the free-list or when chained.
-}
-
-func (c *chunk) getLoc(size int) Loc {
-	var loc = c.self // Makes a copy.
-	loc.bufLen = size
-	return loc
 }
 
 // NewArena returns an Arena to manage byte slice memory based on a
@@ -186,13 +198,15 @@ func (s *Arena) GetNext(buf []byte) (bufNext []byte) {
 
 	cNext.addRef()
 
-	return scNext.chunkMem(cNext)[0:c.next.bufLen]
+	return scNext.chunkMem(cNext)[c.next.bufStart:c.next.bufLen]
 }
 
 // SetNext associates the next chain buf following the input buf to be
 // bufNext.  The buf's from an Arena can be chained, where buf will
 // own an AddRef() on bufNext.  When buf's ref-count goes to zero, it
-// will call DecRef() on bufNext.  The bufNext may be nil.
+// will call DecRef() on bufNext.  The bufNext may be nil.  The
+// bufNext must have start position 0 (or bufStart of 0) with respect
+// to its backing buffer.
 func (s *Arena) SetNext(buf, bufNext []byte) {
 	s.totSetNexts++
 	sc, c := s.bufChunk(buf)
@@ -217,18 +231,24 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 		cNewNext.addRef()
 
 		c.next = cNewNext.self
+		c.next.bufStart = 0
 		c.next.bufLen = len(bufNext)
 	}
 }
 
 // BufToLoc returns a Loc that represents an Arena-managed buf.  Does
-// not affect the reference count of the buf.
+// not affect the reference count of the buf.  The buf slice must have
+// start position 0 (or bufStart of 0).
 func (s *Arena) BufToLoc(buf []byte) Loc {
 	sc, c := s.bufChunk(buf)
 	if sc == nil || c == nil {
 		return NilLoc()
 	}
-	return c.getLoc(len(buf))
+
+	var loc = c.self // Makes a copy.
+	loc.bufStart = 0
+	loc.bufLen = len(buf)
+	return loc
 }
 
 // LocToBuf returns a buf for an Arena-managed Loc.  Does not affect
@@ -238,7 +258,7 @@ func (s *Arena) LocToBuf(loc Loc) []byte {
 	if sc == nil || chunk == nil {
 		return nil
 	}
-	return sc.chunkMem(chunk)[0:loc.bufLen]
+	return sc.chunkMem(chunk)[loc.bufStart:loc.bufLen]
 }
 
 func (s *Arena) LocAddRef(loc Loc) {
@@ -344,6 +364,7 @@ func (s *Arena) addSlab(
 		c.self.slabClassIndex = slabClassIndex
 		c.self.slabIndex = slabIndex
 		c.self.chunkIndex = i
+		c.self.bufStart = 0
 		c.self.bufLen = sc.chunkSize
 		sc.pushFreeChunk(c)
 	}
