@@ -27,7 +27,7 @@ type Loc struct {
 	slabClassIndex int
 	slabIndex      int
 	chunkIndex     int
-	bufSize        int
+	bufLen         int
 }
 
 func NilLoc() Loc {
@@ -38,7 +38,7 @@ var nilLoc = Loc{-1, -1, -1, -1} // A sentinel.
 
 func (cl *Loc) IsNil() bool {
 	return cl.slabClassIndex < 0 && cl.slabIndex < 0 &&
-		cl.chunkIndex < 0 && cl.bufSize < 0
+		cl.chunkIndex < 0 && cl.bufLen < 0
 }
 
 // An Arena manages a set of slab classes and memory.
@@ -92,7 +92,7 @@ type chunk struct {
 
 func (c *chunk) getLoc(size int) Loc {
 	var loc = c.self // Makes a copy.
-	loc.bufSize = size
+	loc.bufLen = size
 	return loc
 }
 
@@ -126,12 +126,12 @@ func defaultMalloc(size int) []byte {
 // available and new slab memory was not allocatable (such as if
 // malloc() returns nil).  The returned buf may not be append()'ed to
 // for growth.  The returned buf must be DecRef()'ed for memory reuse.
-func (s *Arena) Alloc(bufSize int) (buf []byte) {
-	sc, chunk := s.allocChunk(bufSize)
+func (s *Arena) Alloc(bufLen int) (buf []byte) {
+	sc, chunk := s.allocChunk(bufLen)
 	if sc == nil || chunk == nil {
 		return nil
 	}
-	return sc.chunkMem(chunk)[0:bufSize]
+	return sc.chunkMem(chunk)[0:bufLen]
 }
 
 // Owns returns true if this Arena owns the buf.
@@ -186,7 +186,7 @@ func (s *Arena) GetNext(buf []byte) (bufNext []byte) {
 
 	cNext.addRef()
 
-	return scNext.chunkMem(cNext)[0:c.next.bufSize]
+	return scNext.chunkMem(cNext)[0:c.next.bufLen]
 }
 
 // SetNext associates the next chain buf following the input buf to be
@@ -217,7 +217,7 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 		cNewNext.addRef()
 
 		c.next = cNewNext.self
-		c.next.bufSize = len(bufNext)
+		c.next.bufLen = len(bufNext)
 	}
 }
 
@@ -238,7 +238,7 @@ func (s *Arena) LocToBuf(loc Loc) []byte {
 	if sc == nil || chunk == nil {
 		return nil
 	}
-	return sc.chunkMem(chunk)[0:loc.bufSize]
+	return sc.chunkMem(chunk)[0:loc.bufLen]
 }
 
 func (s *Arena) LocAddRef(loc Loc) {
@@ -261,15 +261,15 @@ func (s *Arena) LocDecRef(loc Loc) {
 
 // ---------------------------------------------------------------
 
-func (s *Arena) allocChunk(bufSize int) (*slabClass, *chunk) {
+func (s *Arena) allocChunk(bufLen int) (*slabClass, *chunk) {
 	s.totAllocs++
 
-	if bufSize > s.slabSize {
+	if bufLen > s.slabSize {
 		s.totTooBigErrs++
 		return nil, nil
 	}
 
-	slabClassIndex := s.findSlabClassIndex(bufSize)
+	slabClassIndex := s.findSlabClassIndex(bufLen)
 	sc := &(s.slabClasses[slabClassIndex])
 	if sc.chunkFree.IsNil() {
 		if !s.addSlab(slabClassIndex, s.slabSize, s.slabMagic) {
@@ -288,14 +288,14 @@ func (s *Arena) allocChunk(bufSize int) (*slabClass, *chunk) {
 	return sc, chunk
 }
 
-func (s *Arena) findSlabClassIndex(bufSize int) int {
+func (s *Arena) findSlabClassIndex(bufLen int) int {
 	i := sort.Search(len(s.slabClasses),
-		func(i int) bool { return bufSize <= s.slabClasses[i].chunkSize })
+		func(i int) bool { return bufLen <= s.slabClasses[i].chunkSize })
 	if i >= len(s.slabClasses) {
 		slabClass := &(s.slabClasses[len(s.slabClasses)-1])
 		nextChunkSize := float64(slabClass.chunkSize) * s.growthFactor
 		s.addSlabClass(int(math.Ceil(nextChunkSize)))
-		return s.findSlabClassIndex(bufSize)
+		return s.findSlabClassIndex(bufLen)
 	}
 	return i
 }
@@ -344,7 +344,7 @@ func (s *Arena) addSlab(
 		c.self.slabClassIndex = slabClassIndex
 		c.self.slabIndex = slabIndex
 		c.self.chunkIndex = i
-		c.self.bufSize = sc.chunkSize
+		c.self.bufLen = sc.chunkSize
 		sc.pushFreeChunk(c)
 	}
 	sc.numChunks += int64(len(slab.chunks))

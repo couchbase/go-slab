@@ -505,11 +505,11 @@ func testChaining(t *testing.T, s *Arena) {
 
 func TestFindSlabClassIndex(t *testing.T) {
 	s := NewArena(1, 1024, 2, nil)
-	test := func(bufSize, idxExp int) {
-		idxAct := s.findSlabClassIndex(bufSize)
+	test := func(bufLen, idxExp int) {
+		idxAct := s.findSlabClassIndex(bufLen)
 		if idxExp != idxAct {
-			t.Errorf("expected slab class index: %v, got: %v, bufSize: %v",
-				idxExp, idxAct, bufSize)
+			t.Errorf("expected slab class index: %v, got: %v, bufLen: %v",
+				idxExp, idxAct, bufLen)
 		}
 	}
 	test(0, 0)
