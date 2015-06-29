@@ -51,7 +51,8 @@ func (cl Loc) IsNil() bool {
 // buffer.
 //
 // NOTE: Many API's (such as BufToLoc) do not correctly handle Loc's
-// with non-zero bufStart, so use sliced Loc's with caution.
+// with non-zero bufStart, so please be careful with using sliced
+// Loc's.
 func (cl Loc) Slice(bufStart, bufLen int) Loc {
 	rv := cl // Makes a copy.
 	rv.bufStart = bufStart
@@ -238,7 +239,7 @@ func (s *Arena) SetNext(buf, bufNext []byte) {
 
 // BufToLoc returns a Loc that represents an Arena-managed buf.  Does
 // not affect the reference count of the buf.  The buf slice must have
-// start position 0 (or bufStart of 0).
+// start position 0 (must not be a sliced Loc with non-zero bufStart).
 func (s *Arena) BufToLoc(buf []byte) Loc {
 	sc, c := s.bufChunk(buf)
 	if sc == nil || c == nil {
