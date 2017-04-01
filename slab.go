@@ -313,13 +313,20 @@ func (s *Arena) allocChunk(bufLen int) (*slabClass, *chunk) {
 func (s *Arena) findSlabClassIndex(bufLen int) int {
 	i := sort.Search(len(s.slabClasses),
 		func(i int) bool { return bufLen <= s.slabClasses[i].chunkSize })
-	if i >= len(s.slabClasses) {
-		slabClass := &(s.slabClasses[len(s.slabClasses)-1])
-		nextChunkSize := float64(slabClass.chunkSize) * s.growthFactor
-		s.addSlabClass(int(math.Ceil(nextChunkSize)))
-		return s.findSlabClassIndex(bufLen)
+	if i != len(s.slabClasses) {
+		return i
 	}
-	return i
+	// Add larger slabClass by growthFactor until the one fits bufLen.
+	for {
+		slabClass := &(s.slabClasses[len(s.slabClasses)-1])
+		nextChunkSize := int(math.Ceil(
+			float64(slabClass.chunkSize) * s.growthFactor,
+		))
+		s.addSlabClass(nextChunkSize)
+		if bufLen <= nextChunkSize {
+			return len(s.slabClasses) - 1
+		}
+	}
 }
 
 func (s *Arena) addSlabClass(chunkSize int) {
